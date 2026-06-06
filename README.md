@@ -8,6 +8,12 @@ types appear) and a pure-Scala wrapper that speaks in `Int`, `Double`,
 
 These are **Native-only** artifacts — there is no JVM or JS build.
 
+## Documentation
+
+Full documentation — installation, a quick start, the binding's design, and a page per
+module with examples — is at **[sdl3.edadma.dev](https://sdl3.edadma.dev/)** (source in
+[`docs/`](docs/)). This README is a quick taste; the site is the reference.
+
 ## Modules
 
 | Module   | Artifact                       | System library | Description |
