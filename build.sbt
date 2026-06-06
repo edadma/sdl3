@@ -9,7 +9,7 @@ ThisBuild / scalaVersion           := "3.8.4"
 ThisBuild / organization           := "io.github.edadma"
 ThisBuild / organizationName       := "edadma"
 ThisBuild / organizationHomepage   := Some(url("https://github.com/edadma"))
-ThisBuild / version                := "0.1.0"
+ThisBuild / version                := "0.2.0"
 ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 
 ThisBuild / publishConfiguration := publishConfiguration.value.withOverwrite(true).withChecksums(Vector.empty)
@@ -94,9 +94,21 @@ lazy val image = project
     description := "Scala Native bindings for SDL_image 3, built on the sdl3 core binding",
   )
 
+// SDL_mixer 3 audio playback (effects + music). Published as
+// `io.github.edadma::sdl3_mixer`.
+lazy val mixer = project
+  .in(file("mixer"))
+  .enablePlugins(ScalaNativePlugin)
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name        := "sdl3_mixer",
+    description := "Scala Native bindings for SDL_mixer 3, built on the sdl3 core binding",
+  )
+
 lazy val root = project
   .in(file("."))
-  .aggregate(core, ttf, image)
+  .aggregate(core, ttf, image, mixer)
   .settings(
     name           := "sdl3-suite",
     publish / skip := true,

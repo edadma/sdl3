@@ -174,6 +174,45 @@ package object sdl3:
     /** Upload a CPU surface (e.g. from SDL_ttf or SDL_image) to a GPU texture. */
     def createTextureFromSurface(s: Surface): Texture =
       new Texture(sdl.SDL_CreateTextureFromSurface(ptr, s.ptr))
+
+    /** A filled, solid-colour circle, triangulated as a fan and drawn through
+      * `SDL_RenderGeometry` — the SDL3 replacement for SDL2_gfx's filled circle.
+      * Edge smoothness comes from the segment count (scaled to the radius) plus
+      * any supersampling the caller renders into.
+      */
+    def fillCircle(cx: Double, cy: Double, radius: Double, color: Color): Unit =
+      val segs   = circleSegments(radius)
+      val nVerts = segs + 1
+      val v      = stackalloc[Float](nVerts * 8)
+      val idx    = stackalloc[CInt](segs * 3)
+      buildCircle(v, idx, cx, cy, radius, color, segs)
+      sdl.SDL_RenderGeometry(ptr, null, v, nVerts, idx, segs * 3)
+
+    /** A line with thickness, drawn as a quad of two triangles through
+      * `SDL_RenderGeometry`. A zero-length line draws nothing. */
+    def thickLine(x1: Double, y1: Double, x2: Double, y2: Double, width: Double, color: Color): Unit =
+      val v   = stackalloc[Float](4 * 8)
+      val idx = stackalloc[CInt](6)
+      if buildThickLine(v, idx, x1, y1, x2, y2, width, color) then
+        sdl.SDL_RenderGeometry(ptr, null, v, 4, idx, 6)
+
+    /** A filled convex polygon (3+ points as `x0, y0, x1, y1, …`), triangulated
+      * as a fan from the first vertex. */
+    def fillConvexPolygon(coords: Array[Double], color: Color): Unit =
+      val n = coords.length / 2
+      if n >= 3 then
+        val v   = stackalloc[Float](n * 8)
+        val idx = stackalloc[CInt]((n - 2) * 3)
+        var i   = 0
+        while i < n do
+          putVertex(v, i, coords(i * 2), coords(i * 2 + 1), color)
+          i += 1
+        i = 0
+        while i < n - 2 do
+          idx(i * 3) = 0; idx(i * 3 + 1) = i + 1; idx(i * 3 + 2) = i + 2
+          i += 1
+        sdl.SDL_RenderGeometry(ptr, null, v, n, idx, (n - 2) * 3)
+
     def destroy(): Unit = sdl.SDL_DestroyRenderer(ptr)
 
   // A scratch SDL_FRect ({float x, y, w, h}) for the rect-taking render calls.
@@ -182,6 +221,75 @@ package object sdl3:
     val r = stackalloc[Float](4)
     r(0) = x.toFloat; r(1) = y.toFloat; r(2) = w.toFloat; r(3) = h.toFloat
     r
+
+  // ---- geometry buffer builders (shared by the RenderGeometry helpers) ----
+  //
+  // An SDL_Vertex is 8 contiguous floats: position (x, y), colour (r, g, b, a)
+  // in 0–1, and texture coords (u, v). With a null texture the coords are
+  // ignored, so they are written as 0. These builders are package-private so the
+  // geometry logic can be unit-tested headlessly, without a live renderer.
+
+  private[sdl3] def putVertex(v: Ptr[Float], i: Int, x: Double, y: Double, color: Color): Unit =
+    val b = i * 8
+    v(b) = x.toFloat; v(b + 1) = y.toFloat
+    v(b + 2) = color.r / 255f; v(b + 3) = color.g / 255f; v(b + 4) = color.b / 255f; v(b + 5) = color.a / 255f
+    v(b + 6) = 0f; v(b + 7) = 0f
+
+  /** Segment count for a filled circle — more segments as the radius grows, so
+    * small dots stay cheap and large discs stay smooth. */
+  private[sdl3] def circleSegments(radius: Double): Int =
+    math.max(12, math.min(64, radius.toInt + 12))
+
+  /** Fill `v` (`(segs+1)*8` floats) and `idx` (`segs*3` ints) with a triangle-fan
+    * circle: vertex 0 at the centre, `segs` vertices around the rim. */
+  private[sdl3] def buildCircle(
+      v: Ptr[Float],
+      idx: Ptr[CInt],
+      cx: Double,
+      cy: Double,
+      radius: Double,
+      color: Color,
+      segs: Int,
+  ): Unit =
+    putVertex(v, 0, cx, cy, color)
+    var i = 0
+    while i < segs do
+      val ang = (i.toDouble / segs) * 2.0 * math.Pi
+      putVertex(v, i + 1, cx + math.cos(ang) * radius, cy + math.sin(ang) * radius, color)
+      i += 1
+    i = 0
+    while i < segs do
+      idx(i * 3) = 0
+      idx(i * 3 + 1) = i + 1
+      idx(i * 3 + 2) = if i + 1 < segs then i + 2 else 1
+      i += 1
+
+  /** Fill `v` (4 vertices) and `idx` (6 ints) with the quad for a thick line.
+    * Returns `false` (drawing nothing) for a zero-length line. */
+  private[sdl3] def buildThickLine(
+      v: Ptr[Float],
+      idx: Ptr[CInt],
+      x1: Double,
+      y1: Double,
+      x2: Double,
+      y2: Double,
+      width: Double,
+      color: Color,
+  ): Boolean =
+    val dx  = x2 - x1
+    val dy  = y2 - y1
+    val len = math.hypot(dx, dy)
+    if len == 0.0 then false
+    else
+      val nx = -dy / len * (width / 2.0)
+      val ny = dx / len * (width / 2.0)
+      putVertex(v, 0, x1 + nx, y1 + ny, color)
+      putVertex(v, 1, x2 + nx, y2 + ny, color)
+      putVertex(v, 2, x2 - nx, y2 - ny, color)
+      putVertex(v, 3, x1 - nx, y1 - ny, color)
+      idx(0) = 0; idx(1) = 1; idx(2) = 2
+      idx(3) = 0; idx(4) = 2; idx(5) = 3
+      true
 
   implicit class Texture(val ptr: sdl.SDL_Texture) extends AnyVal:
     def isNull: Boolean               = ptr == null

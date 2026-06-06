@@ -55,6 +55,10 @@ object LibSDL3:
   def SDL_RenderRect(renderer: SDL_Renderer, rect: Ptr[Float]): CBool              = extern
   def SDL_RenderFillRect(renderer: SDL_Renderer, rect: Ptr[Float]): CBool          = extern
   def SDL_RenderTexture(renderer: SDL_Renderer, texture: SDL_Texture, srcrect: Ptr[Float], dstrect: Ptr[Float]): CBool = extern
+  // SDL_Vertex is {SDL_FPoint position; SDL_FColor color; SDL_FPoint tex_coord} —
+  // 8 contiguous floats (pos.xy, color.rgba, tex.uv), 32 bytes, no padding. The
+  // high-level layer builds the vertex array as raw floats and passes it here.
+  def SDL_RenderGeometry(renderer: SDL_Renderer, texture: SDL_Texture, vertices: Ptr[Float], numVertices: CInt, indices: Ptr[CInt], numIndices: CInt): CBool = extern
   def SDL_RenderPresent(renderer: SDL_Renderer): CBool                             = extern
   def SDL_SetRenderTarget(renderer: SDL_Renderer, texture: SDL_Texture): CBool     = extern
 

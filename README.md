@@ -12,12 +12,13 @@ These are **Native-only** artifacts — there is no JVM or JS build.
 
 | Module   | Artifact                       | System library | Description |
 |----------|--------------------------------|----------------|-------------|
-| `core`   | `io.github.edadma::sdl3`       | `SDL3`         | Window, float render API, textures, surfaces, events, keyboard/mouse, hints, render targets |
+| `core`   | `io.github.edadma::sdl3`       | `SDL3`         | Window, float render API (incl. `RenderGeometry` fills), textures, surfaces, events, keyboard/mouse, hints, render targets |
 | `ttf`    | `io.github.edadma::sdl3_ttf`   | `SDL3_ttf`     | Font loading and text rendering (built on `core`) |
 | `image`  | `io.github.edadma::sdl3_image` | `SDL3_image`   | Image decoding to surfaces/textures (built on `core`) |
+| `mixer`  | `io.github.edadma::sdl3_mixer` | `SDL3_mixer`   | Audio playback — sound effects and music (built on `core`) |
 
-`ttf` and `image` depend on `core` directly within the build, so the suite can
-be developed and tested without publishing intermediate versions.
+The satellite modules depend on `core` directly within the build, so the suite
+can be developed and tested without publishing intermediate versions.
 
 ## Why SDL3
 
@@ -32,7 +33,7 @@ plus supersampled render targets, so there is no `gfx` module.
 Install the native libraries (macOS / Homebrew):
 
 ```sh
-brew install sdl3 sdl3_ttf sdl3_image
+brew install sdl3 sdl3_ttf sdl3_image sdl3_mixer
 ```
 
 ## Usage
@@ -40,9 +41,10 @@ brew install sdl3 sdl3_ttf sdl3_image
 Add the module(s) you need (Scala Native):
 
 ```scala
-libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.1.0"
-libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.1.0"
-libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.1.0"
+libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.0"
+libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.0"
+libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.0"
+libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.0"
 ```
 
 ```scala
@@ -57,7 +59,8 @@ val renderer = window.createRenderer()
 renderer.clear(Color.Black)
 renderer.setDrawColor(Color.fromRGB(0x4dabf7))
 renderer.fillRect(100, 100, 200, 150)
-renderer.drawLine(0, 0, 800, 600)
+renderer.fillCircle(400, 300, 60, Color.fromRGB(0xff6b6b))   // triangulated fill
+renderer.thickLine(0, 0, 800, 600, 3, Color.White)
 renderer.present()
 
 delay(2000)
