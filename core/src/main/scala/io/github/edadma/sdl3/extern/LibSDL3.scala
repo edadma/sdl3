@@ -61,6 +61,7 @@ object LibSDL3:
   def SDL_RenderGeometry(renderer: SDL_Renderer, texture: SDL_Texture, vertices: Ptr[Float], numVertices: CInt, indices: Ptr[CInt], numIndices: CInt): CBool = extern
   def SDL_RenderPresent(renderer: SDL_Renderer): CBool                             = extern
   def SDL_SetRenderTarget(renderer: SDL_Renderer, texture: SDL_Texture): CBool     = extern
+  def SDL_SetRenderVSync(renderer: SDL_Renderer, vsync: CInt): CBool               = extern
 
   def SDL_CreateTexture(renderer: SDL_Renderer, format: UInt, access: CInt, w: CInt, h: CInt): SDL_Texture = extern
   def SDL_CreateTextureFromSurface(renderer: SDL_Renderer, surface: SDL_Surface): SDL_Texture = extern

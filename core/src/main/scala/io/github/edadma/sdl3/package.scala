@@ -158,6 +158,9 @@ package object sdl3:
     def fillRect(x: Double, y: Double, w: Double, h: Double): Unit =
       sdl.SDL_RenderFillRect(ptr, frect(x, y, w, h))
     def present(): Unit             = sdl.SDL_RenderPresent(ptr)
+    /** Synchronise `present` to the display refresh (`true`) or run unthrottled
+      * (`false`). SDL3 renderers default to vsync disabled. */
+    def setVSync(enabled: Boolean): Unit = sdl.SDL_SetRenderVSync(ptr, if enabled then 1 else 0)
     def setTarget(t: Texture): Unit = sdl.SDL_SetRenderTarget(ptr, t.ptr)
     def resetTarget(): Unit         = sdl.SDL_SetRenderTarget(ptr, null)
     /** Blit a whole texture across the entire render target. */
