@@ -37,12 +37,13 @@ package object sdl3_ttf:
   def openFont(path: String, ptSize: Double): Font =
     Zone(new Font(ttf.TTF_OpenFont(toCString(path), ptSize.toFloat)))
 
-  // Build an SDL_Color in the current zone for by-value passing. Zone-allocated
-  // (not stackalloc) so the pointer stays valid until the enclosing render call.
-  private def sdlColor(c: Color)(using Zone): Ptr[ttf.SDL_Color] =
-    val p = alloc[ttf.SDL_Color]()
-    p._1 = c.r.toUByte; p._2 = c.g.toUByte; p._3 = c.b.toUByte; p._4 = c.a.toUByte
-    p
+  // Pack an SDL_Color into a little-endian uint32 (r in the low byte) for passing to
+  // the render externs. SDL_Color is a by-value 4-byte struct in C, but Scala Native
+  // mis-marshals a small by-value struct argument; a uint32 is passed in the same
+  // register on the C ABIs this binding targets, and the little-endian byte order
+  // matches the struct's layout, so C reads the right channels. See LibSDL3Ttf.
+  private[sdl3_ttf] def packColor(c: Color): CUnsignedInt =
+    ((c.r & 0xff) | ((c.g & 0xff) << 8) | ((c.b & 0xff) << 16) | ((c.a & 0xff) << 24)).toUInt
 
   /** A loaded font. Render methods produce an `sdl3.Surface`; the caller uploads
     * it to a texture and frees it (or uses [[Font.texture]] to do both).
@@ -70,19 +71,19 @@ package object sdl3_ttf:
 
     /** Fast, aliased text on a transparent background. */
     def renderSolid(text: String, fg: Color): Surface = Zone {
-      new Surface(ttf.TTF_RenderText_Solid(ptr, toCString(text), NUL_TERMINATED, !sdlColor(fg)))
+      new Surface(ttf.TTF_RenderText_Solid(ptr, toCString(text), NUL_TERMINATED, packColor(fg)))
     }
     /** Antialiased text on a solid `bg` box. */
     def renderShaded(text: String, fg: Color, bg: Color): Surface = Zone {
-      new Surface(ttf.TTF_RenderText_Shaded(ptr, toCString(text), NUL_TERMINATED, !sdlColor(fg), !sdlColor(bg)))
+      new Surface(ttf.TTF_RenderText_Shaded(ptr, toCString(text), NUL_TERMINATED, packColor(fg), packColor(bg)))
     }
     /** Antialiased text with an alpha channel — the usual choice for a HUD. */
     def renderBlended(text: String, fg: Color): Surface = Zone {
-      new Surface(ttf.TTF_RenderText_Blended(ptr, toCString(text), NUL_TERMINATED, !sdlColor(fg)))
+      new Surface(ttf.TTF_RenderText_Blended(ptr, toCString(text), NUL_TERMINATED, packColor(fg)))
     }
     /** Antialiased, word-wrapped at `wrapPixels` (0 wraps only on newlines). */
     def renderBlendedWrapped(text: String, fg: Color, wrapPixels: Int): Surface = Zone {
-      new Surface(ttf.TTF_RenderText_Blended_Wrapped(ptr, toCString(text), NUL_TERMINATED, !sdlColor(fg), wrapPixels))
+      new Surface(ttf.TTF_RenderText_Blended_Wrapped(ptr, toCString(text), NUL_TERMINATED, packColor(fg), wrapPixels))
     }
 
     /** Render blended text straight to a GPU texture. The caller draws it with

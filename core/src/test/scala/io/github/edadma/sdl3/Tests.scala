@@ -66,6 +66,25 @@ class Tests extends AnyFreeSpec with Matchers:
     lastWrap shouldBe 1 // last triangle wraps back to the first rim vertex
   }
 
+  "frect returns a buffer that stays valid after the call returns" in {
+    // Regression: frect must not hand back `stackalloc` memory. Stack memory belongs to
+    // the frame that allocates it, so a pointer returned from frect would dangle the
+    // instant it returns, and the rect-taking render calls (fillRect/drawRect/copy) would
+    // read garbage coordinates — drawing nothing. Read the rect back after frect returns,
+    // with intervening stack churn that would clobber a reused stack slot, to prove the
+    // buffer survives.
+    val p = frect(12.0, 34.0, 56.0, 78.0)
+    Zone {
+      val churn = stackalloc[Float](256)
+      var i     = 0
+      while i < 256 do { churn(i) = -1.0f; i += 1 }
+    }
+    p(0) shouldBe 12.0f
+    p(1) shouldBe 34.0f
+    p(2) shouldBe 56.0f
+    p(3) shouldBe 78.0f
+  }
+
   "buildThickLine makes a width-wide quad and rejects zero length" in {
     val (ax, ay, bx, by, ok, degenerate) = Zone {
       val v   = stackalloc[Float](4 * 8)

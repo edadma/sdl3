@@ -218,12 +218,16 @@ package object sdl3:
 
     def destroy(): Unit = sdl.SDL_DestroyRenderer(ptr)
 
-  // A scratch SDL_FRect ({float x, y, w, h}) for the rect-taking render calls.
-  // Reused per draw; safe because SDL reads it synchronously within the call.
-  private def frect(x: Double, y: Double, w: Double, h: Double): Ptr[Float] =
-    val r = stackalloc[Float](4)
-    r(0) = x.toFloat; r(1) = y.toFloat; r(2) = w.toFloat; r(3) = h.toFloat
-    r
+  // A scratch SDL_FRect ({float x, y, w, h}) for the rect-taking render calls. Kept on
+  // the heap for the process lifetime rather than `stackalloc`'d: stack memory belongs
+  // to the frame that allocates it, so a pointer returned from this helper would dangle
+  // the moment the helper returns and SDL would read garbage. Refilled per call and
+  // reused; safe because SDL reads it synchronously within the call, rendering is
+  // single-threaded, and no render call needs two of these live at once.
+  private val frectBuf: Ptr[Float] = stdlib.malloc(16.toUSize).asInstanceOf[Ptr[Float]] // 4 × f32
+  private[sdl3] def frect(x: Double, y: Double, w: Double, h: Double): Ptr[Float] =
+    frectBuf(0) = x.toFloat; frectBuf(1) = y.toFloat; frectBuf(2) = w.toFloat; frectBuf(3) = h.toFloat
+    frectBuf
 
   // ---- geometry buffer builders (shared by the RenderGeometry helpers) ----
   //

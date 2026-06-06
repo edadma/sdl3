@@ -1,8 +1,7 @@
 package io.github.edadma.sdl3_ttf
 
-import scala.scalanative.unsafe.*
 import scala.scalanative.unsigned.*
-import io.github.edadma.sdl3_ttf.extern.LibSDL3Ttf
+import io.github.edadma.sdl3.Color
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -14,15 +13,13 @@ class Tests extends AnyFreeSpec with Matchers:
     Seq(STYLE_BOLD, STYLE_ITALIC, STYLE_UNDERLINE, STYLE_STRIKETHROUGH).distinct.length shouldBe 4
   }
 
-  "SDL_Color is a 4-byte by-value struct that round-trips its channels" in {
-    val (r, g, b, a, sz) = Zone {
-      val p = alloc[LibSDL3Ttf.SDL_Color]()
-      p._1 = 200.toUByte; p._2 = 100.toUByte; p._3 = 50.toUByte; p._4 = 255.toUByte
-      (p._1.toInt, p._2.toInt, p._3.toInt, p._4.toInt, sizeof[LibSDL3Ttf.SDL_Color].toInt)
-    }
-    r shouldBe 200
-    g shouldBe 100
-    b shouldBe 50
-    a shouldBe 255
-    sz shouldBe 4
+  // The render externs take SDL_Color as a packed little-endian uint32 (r in the low
+  // byte) rather than a by-value struct, which Scala Native mis-marshals. This pins the
+  // channel order so the C side reinterprets the register's bytes as the right colour.
+  "packColor lays the channels out little-endian (r in the low byte)" in {
+    val packed = packColor(Color(200, 100, 50, 255)).toLong & 0xffffffffL
+    (packed & 0xff) shouldBe 200L         // r
+    ((packed >> 8) & 0xff) shouldBe 100L  // g
+    ((packed >> 16) & 0xff) shouldBe 50L  // b
+    ((packed >> 24) & 0xff) shouldBe 255L // a
   }
