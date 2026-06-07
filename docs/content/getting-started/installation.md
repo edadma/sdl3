@@ -44,10 +44,10 @@ lazy val app = project
   .in(file("app"))
   .enablePlugins(ScalaNativePlugin)
   .settings(
-    libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.3",
-    libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.3",
-    libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.3",
-    libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.3",
+    libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.4",
+    libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.4",
+    libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.4",
+    libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.4",
   )
 ```
 

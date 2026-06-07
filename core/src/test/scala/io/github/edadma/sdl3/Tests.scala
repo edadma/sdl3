@@ -98,6 +98,30 @@ class Tests extends AnyFreeSpec with Matchers:
     TEXT_EDITING shouldBe 0x304
   }
 
+  "key modifier aliases combine the left/right sides" in {
+    KMOD_SHIFT shouldBe (KMOD_LSHIFT | KMOD_RSHIFT)
+    KMOD_CTRL shouldBe (KMOD_LCTRL | KMOD_RCTRL)
+    KMOD_SHIFT shouldBe 0x0003
+    KMOD_CTRL shouldBe 0x00c0
+  }
+
+  "keyMod reads the modifier bitmask from a keyboard event" in {
+    // SDL_KeyboardEvent.mod is a Uint16 at offset 32, little-endian. Fabricate an event
+    // buffer with left-shift + left-ctrl set and read it back through the accessor.
+    val mods = Zone {
+      val buf = stackalloc[Byte](128)
+      var i   = 0
+      while i < 128 do { buf(i) = 0.toByte; i += 1 }
+      val m = KMOD_LSHIFT | KMOD_LCTRL
+      buf(32) = (m & 0xff).toByte
+      buf(33) = ((m >> 8) & 0xff).toByte
+      new Event(buf).keyMod
+    }
+    (mods & KMOD_SHIFT) should not be 0
+    (mods & KMOD_CTRL) should not be 0
+    (mods & KMOD_ALT) shouldBe 0
+  }
+
   "buildThickLine makes a width-wide quad and rejects zero length" in {
     val (ax, ay, bx, by, ok, degenerate) = Zone {
       val v   = stackalloc[Float](4 * 8)

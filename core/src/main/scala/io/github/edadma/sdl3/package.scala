@@ -73,6 +73,24 @@ package object sdl3:
   val BUTTON_MMASK = 2
   val BUTTON_RMASK = 4
 
+  // ---- key modifiers (SDL_Keymod) ----
+  // The modifier bitmask carried by a keyboard event (see [[Event.keyMod]]); the `*_SHIFT`
+  // / `*_CTRL` / `*_ALT` / `*_GUI` aliases match either side. These are the SDL3
+  // `SDL_KMOD_*` values.
+  val KMOD_NONE   = 0x0000
+  val KMOD_LSHIFT = 0x0001
+  val KMOD_RSHIFT = 0x0002
+  val KMOD_LCTRL  = 0x0040
+  val KMOD_RCTRL  = 0x0080
+  val KMOD_LALT   = 0x0100
+  val KMOD_RALT   = 0x0200
+  val KMOD_LGUI   = 0x0400
+  val KMOD_RGUI   = 0x0800
+  val KMOD_SHIFT  = KMOD_LSHIFT | KMOD_RSHIFT
+  val KMOD_CTRL   = KMOD_LCTRL | KMOD_RCTRL
+  val KMOD_ALT    = KMOD_LALT | KMOD_RALT
+  val KMOD_GUI    = KMOD_LGUI | KMOD_RGUI
+
   // ---- hint names ----
   val HINT_RENDER_VSYNC = "SDL_RENDER_VSYNC"
 
@@ -367,6 +385,7 @@ package object sdl3:
     private def i32(off: Int): Int     = !((ptr + off).asInstanceOf[Ptr[Int]])
     private def f32(off: Int): Float   = !((ptr + off).asInstanceOf[Ptr[Float]])
     private def u8(off: Int): Int      = (!(ptr + off)).toInt & 0xff
+    private def u16(off: Int): Int      = u8(off) | (u8(off + 1) << 8)
     private def bool(off: Int): Boolean = !(ptr + off) != 0
 
     def kind: Int = (!ptr.asInstanceOf[Ptr[UInt]]).toInt
@@ -374,6 +393,10 @@ package object sdl3:
     /** Keyboard events: the physical key (an SDL scancode) and key-repeat flag. */
     def keyScancode: Int   = i32(24)
     def keyRepeat: Boolean = bool(37)
+    /** Keyboard events: the active modifier keys, a bitmask of the `KMOD_*` values, read
+      * from `SDL_KeyboardEvent.mod` (a `Uint16` at offset 32 in the 64-bit layout). Test a
+      * side-agnostic modifier with the combined alias, e.g. `(e.keyMod & KMOD_SHIFT) != 0`. */
+    def keyMod: Int = u16(32)
     /** Mouse motion events: cursor position. */
     def mouseX: Double = f32(28).toDouble
     def mouseY: Double = f32(32).toDouble
