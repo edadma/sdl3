@@ -1,5 +1,11 @@
 # sdl3
 
+![Maven Central](https://img.shields.io/maven-central/v/io.github.edadma/sdl3_native0.5_3)
+[![Last Commit](https://img.shields.io/github/last-commit/edadma/sdl3)](https://github.com/edadma/sdl3/commits)
+![License](https://img.shields.io/github/license/edadma/sdl3)
+![Scala Version](https://img.shields.io/badge/Scala-3.8.4-blue.svg)
+![Scala Native Version](https://img.shields.io/badge/Scala_Native-0.5.12-blue.svg)
+
 Scala Native bindings for [SDL3](https://www.libsdl.org/) and its satellite
 libraries, as a monorepo of one-library-per-module bindings. Each module is a
 thin two-layer binding: a raw `@extern` FFI layer (the only place Scala Native
