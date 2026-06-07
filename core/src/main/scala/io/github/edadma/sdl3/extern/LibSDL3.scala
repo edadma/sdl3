@@ -65,6 +65,7 @@ object LibSDL3:
 
   def SDL_CreateTexture(renderer: SDL_Renderer, format: UInt, access: CInt, w: CInt, h: CInt): SDL_Texture = extern
   def SDL_CreateTextureFromSurface(renderer: SDL_Renderer, surface: SDL_Surface): SDL_Texture = extern
+  def SDL_UpdateTexture(texture: SDL_Texture, rect: Ptr[Byte], pixels: Ptr[Byte], pitch: CInt): CBool = extern
   def SDL_DestroyTexture(texture: SDL_Texture): Unit                               = extern
   def SDL_SetTextureScaleMode(texture: SDL_Texture, scaleMode: CInt): CBool        = extern
   def SDL_GetTextureSize(texture: SDL_Texture, w: Ptr[Float], h: Ptr[Float]): CBool = extern

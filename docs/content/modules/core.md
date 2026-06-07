@@ -103,6 +103,26 @@ r.present()
 Texture access modes: `TEXTUREACCESS_STATIC`, `TEXTUREACCESS_STREAMING`,
 `TEXTUREACCESS_TARGET`.
 
+### Uploading a CPU pixel buffer
+
+To put pixels produced on the CPU — by a 2D engine such as Cairo, or any code that fills a
+raw buffer — onto the screen, create a `STREAMING` texture and replace its contents each
+frame:
+
+```scala
+val tex = r.createTexture(PIXELFORMAT_ARGB8888, TEXTUREACCESS_STREAMING, w, h)
+
+// each frame, after rendering into `buffer` (a Ptr[Byte]) whose rows are `pitch` bytes:
+tex.update(buffer, pitch)
+r.copy(tex)
+r.present()
+```
+
+`PIXELFORMAT_ARGB8888` is laid out B, G, R, A on a little-endian host — byte-for-byte
+identical to a Cairo `Format.ARGB32` image surface — so a Cairo buffer (its `getData` and
+`getStride`) uploads with no conversion. `update` replaces the whole texture; `pitch` is the
+source buffer's row length in bytes, which may exceed `width * 4` if the producer pads rows.
+
 ## Textures and surfaces
 
 A **surface** is CPU pixels; a **texture** is GPU pixels. Upload a surface (from

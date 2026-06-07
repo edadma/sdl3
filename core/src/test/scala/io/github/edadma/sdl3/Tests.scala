@@ -85,6 +85,14 @@ class Tests extends AnyFreeSpec with Matchers:
     p(3) shouldBe 78.0f
   }
 
+  "PIXELFORMAT_ARGB8888 matches SDL's pixel-format encoding" in {
+    // SDL_DEFINE_PIXELFORMAT(PACKED32=6, ARGB=3, 8888=6, bits=32, bytes=4):
+    //   (1<<28) | (6<<24) | (3<<20) | (6<<16) | (32<<8) | 4 = 0x16362004
+    val expected = (1 << 28) | (6 << 24) | (3 << 20) | (6 << 16) | (32 << 8) | 4
+    PIXELFORMAT_ARGB8888 shouldBe expected
+    PIXELFORMAT_ARGB8888 shouldBe 0x16362004
+  }
+
   "buildThickLine makes a width-wide quad and rejects zero length" in {
     val (ax, ay, bx, by, ok, degenerate) = Zone {
       val v   = stackalloc[Float](4 * 8)

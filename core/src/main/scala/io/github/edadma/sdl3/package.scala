@@ -43,6 +43,14 @@ package object sdl3:
   val SCALEMODE_NEAREST       = 0
   val SCALEMODE_LINEAR        = 1
   val SCALEMODE_PIXELART      = 2
+
+  // ---- pixel formats ----
+  /** 32-bit packed ARGB, 8 bits per channel. On a little-endian host the bytes are laid
+    * out B, G, R, A — byte-for-byte identical to a Cairo `Format.ARGB32` image surface — so
+    * a Cairo buffer uploads straight into a streaming texture of this format via
+    * [[Texture.update]]. The value is SDL's `SDL_DEFINE_PIXELFORMAT` encoding for
+    * PACKED32 / ARGB / 8888 / 32-bit. */
+  val PIXELFORMAT_ARGB8888 = 0x16362004
   val BLENDMODE_NONE          = 0x00000000
   val BLENDMODE_BLEND         = 0x00000001
   val BLENDMODE_ADD           = 0x00000002
@@ -301,6 +309,14 @@ package object sdl3:
   implicit class Texture(val ptr: sdl.SDL_Texture) extends AnyVal:
     def isNull: Boolean               = ptr == null
     def setScaleMode(mode: Int): Unit = sdl.SDL_SetTextureScaleMode(ptr, mode)
+
+    /** Upload a CPU pixel buffer into this (STREAMING) texture, replacing all of it.
+      * `pixels` points at the source bytes and `pitch` is the number of bytes per row
+      * (e.g. a Cairo image surface's `getData` and `getStride`). The buffer's pixel layout
+      * must match the texture's format — pair a [[PIXELFORMAT_ARGB8888]] texture with a
+      * Cairo `Format.ARGB32` surface. Returns true on success. */
+    def update(pixels: Ptr[Byte], pitch: Int): Boolean =
+      sdl.SDL_UpdateTexture(ptr, null, pixels, pitch)
     /** The texture's `(width, height)` in pixels. */
     def size: (Int, Int) =
       val w = stackalloc[Float]()
