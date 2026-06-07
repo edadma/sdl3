@@ -38,7 +38,7 @@ output = "/juicerdocs.js"
 minify = true
 
 [juicerdocs]
-version    = "v0.2.2"
+version    = "v0.2.3"
 getStarted = true
 
 # Amber palette (distinct from riposte's teal). Light mode.

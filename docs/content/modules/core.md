@@ -162,10 +162,28 @@ while e.isDefined do
   e = pollEvent()
 ```
 
-Event kinds: `QUIT`, `KEY_DOWN`, `KEY_UP`, `MOUSE_MOTION`, `MOUSE_BUTTON_DOWN`,
+Event kinds: `QUIT`, `KEY_DOWN`, `KEY_UP`, `TEXT_INPUT`, `MOUSE_MOTION`, `MOUSE_BUTTON_DOWN`,
 `MOUSE_BUTTON_UP`, `MOUSE_WHEEL`. Field accessors: `keyScancode`, `keyRepeat`, `mouseX`,
 `mouseY`, `mouseButton` (1 = left, 2 = middle, 3 = right), `wheelX`, `wheelY` (positive y
-= away from the user).
+= away from the user), `text` (for `TEXT_INPUT`).
+
+### Text input
+
+Physical key events (`KEY_DOWN`) give you scancodes; to receive the actual *text* a user
+types — respecting their keyboard layout, and the IME on platforms that have one — enable
+text input on the window, then read `TEXT_INPUT` events:
+
+```scala
+window.startTextInput()          // begin delivering TEXT_INPUT events
+// ... in the event loop:
+if ev.kind == TEXT_INPUT then field += ev.text   // ev.text is the typed UTF-8 string
+// ...
+window.stopTextInput()           // when the field loses focus
+```
+
+A text field typically calls `startTextInput()` when focused and `stopTextInput()` on blur.
+`ev.text` is the UTF-8 string for that event (often a single character, but a composed
+sequence under an IME).
 
 ### Event watches
 

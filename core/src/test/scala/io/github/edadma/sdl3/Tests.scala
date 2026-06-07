@@ -93,6 +93,11 @@ class Tests extends AnyFreeSpec with Matchers:
     PIXELFORMAT_ARGB8888 shouldBe 0x16362004
   }
 
+  "text-input event kinds match the SDL_EVENT_* values" in {
+    TEXT_INPUT shouldBe 0x303
+    TEXT_EDITING shouldBe 0x304
+  }
+
   "buildThickLine makes a width-wide quad and rejects zero length" in {
     val (ax, ay, bx, by, ok, degenerate) = Zone {
       val v   = stackalloc[Float](4 * 8)

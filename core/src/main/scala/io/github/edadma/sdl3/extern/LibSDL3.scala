@@ -42,6 +42,8 @@ object LibSDL3:
   def SDL_GetWindowSize(window: SDL_Window, w: Ptr[CInt], h: Ptr[CInt]): CBool      = extern
   def SDL_GetWindowSizeInPixels(window: SDL_Window, w: Ptr[CInt], h: Ptr[CInt]): CBool = extern
   def SDL_GetWindowPixelFormat(window: SDL_Window): UInt                            = extern
+  def SDL_StartTextInput(window: SDL_Window): CBool                                 = extern
+  def SDL_StopTextInput(window: SDL_Window): CBool                                  = extern
 
   def SDL_CreateRenderer(window: SDL_Window, name: CString): SDL_Renderer = extern
   def SDL_DestroyRenderer(renderer: SDL_Renderer): Unit                   = extern

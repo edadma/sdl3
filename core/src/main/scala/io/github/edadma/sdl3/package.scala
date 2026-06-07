@@ -61,6 +61,8 @@ package object sdl3:
   val QUIT              = 0x100
   val KEY_DOWN          = 0x300
   val KEY_UP            = 0x301
+  val TEXT_EDITING      = 0x304
+  val TEXT_INPUT        = 0x303
   val MOUSE_MOTION      = 0x400
   val MOUSE_BUTTON_DOWN = 0x401
   val MOUSE_BUTTON_UP   = 0x402
@@ -136,6 +138,15 @@ package object sdl3:
       else Zone(new Renderer(sdl.SDL_CreateRenderer(ptr, toCString(name))))
     def setPosition(x: Int, y: Int): Unit = sdl.SDL_SetWindowPosition(ptr, x, y)
     def pixelFormat: Int                  = sdl.SDL_GetWindowPixelFormat(ptr).toInt
+
+    /** Begin delivering text-input events for this window — `TEXT_INPUT` events
+      * (and the on-screen/IME keyboard where the platform has one). The typed text
+      * is read with [[Event.text]]. Pair with [[stopTextInput]]; returns true on
+      * success. A text field enables this while focused and disables it on blur. */
+    def startTextInput(): Boolean = sdl.SDL_StartTextInput(ptr)
+
+    /** Stop delivering text-input events for this window. */
+    def stopTextInput(): Boolean = sdl.SDL_StopTextInput(ptr)
     /** Logical window size in screen coordinates. */
     def size: (Int, Int) =
       val w = stackalloc[CInt]()
@@ -371,6 +382,13 @@ package object sdl3:
     /** Mouse wheel events: scroll amounts (positive y = away from the user). */
     def wheelX: Double = f32(24).toDouble
     def wheelY: Double = f32(28).toDouble
+
+    /** Text-input events (`TEXT_INPUT`): the typed text, UTF-8. SDL3's
+      * `SDL_TextInputEvent.text` is a `const char *` at offset 24 in the 64-bit
+      * layout, so read the pointer and copy the string out. */
+    def text: String =
+      val s = !((ptr + 24).asInstanceOf[Ptr[CString]])
+      if s == null then "" else fromCString(s)
 
   // ---- event watches: the libuv-style callback map pattern ----
   //
