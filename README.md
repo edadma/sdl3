@@ -24,10 +24,10 @@ module with examples — is at **[sdl3.edadma.dev](https://sdl3.edadma.dev/)** (
 
 | Module   | Artifact                       | System library | Description |
 |----------|--------------------------------|----------------|-------------|
-| `core`   | `io.github.edadma::sdl3`       | `SDL3`         | Window, float render API (incl. `RenderGeometry` fills), textures, surfaces, events, keyboard/mouse, hints, render targets |
+| `core`   | `io.github.edadma::sdl3`       | `SDL3`         | Window, float render API (incl. `RenderGeometry` fills), textures, surfaces, events, keyboard/mouse, hints, render targets, PCM audio playback |
 | `ttf`    | `io.github.edadma::sdl3_ttf`   | `SDL3_ttf`     | Font loading and text rendering (built on `core`) |
 | `image`  | `io.github.edadma::sdl3_image` | `SDL3_image`   | Image decoding to surfaces/textures (built on `core`) |
-| `mixer`  | `io.github.edadma::sdl3_mixer` | `SDL3_mixer`   | Audio playback — sound effects and music (built on `core`) |
+| `mixer`  | `io.github.edadma::sdl3_mixer` | `SDL3_mixer`   | Audio *file* loading and mixing — music and decoded effects (built on `core`). For raw/synthesised PCM, `core`'s audio streams need no extra system library. |
 
 The satellite modules depend on `core` directly within the build, so the suite
 can be developed and tested without publishing intermediate versions.
@@ -53,10 +53,10 @@ brew install sdl3 sdl3_ttf sdl3_image sdl3_mixer
 Add the module(s) you need (Scala Native):
 
 ```scala
-libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.4"
-libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.4"
-libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.4"
-libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.4"
+libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.5"
+libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.5"
+libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.5"
+libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.5"
 ```
 
 ```scala

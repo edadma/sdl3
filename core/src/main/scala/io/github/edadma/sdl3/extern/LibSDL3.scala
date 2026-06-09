@@ -79,3 +79,25 @@ object LibSDL3:
   def SDL_GetMouseState(x: Ptr[Float], y: Ptr[Float]): UInt                        = extern
   def SDL_AddEventWatch(filter: SDL_EventFilter, userdata: Ptr[Byte]): CBool       = extern
   def SDL_RemoveEventWatch(filter: SDL_EventFilter, userdata: Ptr[Byte]): Unit     = extern
+
+  // ---- audio ----
+  // An SDL_AudioStream converts/queues PCM and feeds a logical audio device.
+  type SDL_AudioStream = Ptr[Byte]
+
+  // Subsystems can be brought up after SDL_Init; audio is independent of video.
+  def SDL_InitSubSystem(flags: UInt): CBool = extern
+  def SDL_QuitSubSystem(flags: UInt): Unit  = extern
+
+  // SDL_OpenAudioDeviceStream(devid, const SDL_AudioSpec*, callback, userdata): opens a device
+  // and binds a stream to it. SDL_AudioSpec is {SDL_AudioFormat format; int channels; int freq}
+  // — three contiguous 32-bit ints, passed here as a Ptr[Byte] the high-level layer fills. A
+  // null callback selects the pull/queue model: feed it with SDL_PutAudioStreamData.
+  def SDL_OpenAudioDeviceStream(devid: UInt, spec: Ptr[Byte], callback: Ptr[Byte], userdata: Ptr[Byte]): SDL_AudioStream = extern
+  def SDL_ResumeAudioStreamDevice(stream: SDL_AudioStream): CBool                  = extern
+  def SDL_PauseAudioStreamDevice(stream: SDL_AudioStream): CBool                   = extern
+  // SDL copies the bytes synchronously, so the source buffer can be freed straight after.
+  def SDL_PutAudioStreamData(stream: SDL_AudioStream, buf: Ptr[Byte], len: CInt): CBool = extern
+  // Bytes still queued (not yet handed to the device) — used to pick an idle voice.
+  def SDL_GetAudioStreamQueued(stream: SDL_AudioStream): CInt                      = extern
+  def SDL_ClearAudioStream(stream: SDL_AudioStream): CBool                         = extern
+  def SDL_DestroyAudioStream(stream: SDL_AudioStream): Unit                        = extern

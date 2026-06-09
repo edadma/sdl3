@@ -214,3 +214,59 @@ m.middle; m.right
 `Escape`, `Backspace`, `Tab`, `Space`, `Minus`, `Equals`, `LeftBracket`, `RightBracket`,
 and the arrows `Left`, `Right`, `Up`, `Down`. These are the standard USB-HID scancodes
 SDL reports.
+
+## Audio
+
+PCM playback with no callback and no thread of your own. You open a stream, then **push**
+finished buffers of float32 samples; SDL runs its own audio thread that pulls from the
+stream's queue and feeds the device. This suits short, fully-known sounds — synthesised
+effects, decoded one-shots — where you can hand over a complete buffer at the moment you
+need it. (For *continuous* generation you would instead pass a callback to SDL; this layer
+exposes the simpler push model.)
+
+Audio is a separate subsystem from video, so bring it up after the window exists:
+
+```scala
+if initAudio() then              // SDL_InitSubSystem(SDL_INIT_AUDIO)
+  val voice = openAudioStream(44100)        // float32, mono (channels defaults to 1)
+  if !voice.isNull then
+    voice.put(samples)           // samples: Array[Float], each in [-1, 1]
+```
+
+`openAudioStream(freq, channels = 1)` opens the default playback device for `AUDIO_F32`
+samples and starts it; the returned `AudioStream` is an `AnyVal` over the SDL handle:
+
+```scala
+voice.isNull                     // open failed?
+voice.put(samples: Array[Float]) // queue samples (SDL copies them; reuse the array freely)
+voice.queued     : Int           // bytes still to play — 0 means idle
+voice.resume(); voice.pause()    // device-side play/pause
+voice.clear()                    // drop anything queued but not yet played
+voice.destroy()
+```
+
+Each `put` appends to the stream's queue, so successive sounds on one stream play
+back-to-back. To **overlap** effects, open several streams on the default device — SDL mixes
+them — and send each new sound to the most idle one (`queued == 0`):
+
+```scala
+val voices = Array.fill(8)(openAudioStream(44100))
+def play(buf: Array[Float]): Unit =
+  voices.minBy(_.queued).put(buf)           // lands on a free voice, doesn't cut one off
+```
+
+A minimal synth — a 0.1 s sine "beep":
+
+```scala
+val rate = 44100
+val n    = rate / 10
+val beep = Array.tabulate(n) { i =>
+  val t = i.toDouble / rate
+  (math.sin(2 * math.Pi * 440 * t) * math.exp(-6 * t)).toFloat   // 440 Hz, decaying
+}
+play(beep)
+```
+
+Constants: `AUDIO_F32` (32-bit little-endian float samples) and
+`AUDIO_DEVICE_DEFAULT_PLAYBACK` (the default output device id). Call `quitAudio()` to tear
+the subsystem down, or just let `quit()` do it.

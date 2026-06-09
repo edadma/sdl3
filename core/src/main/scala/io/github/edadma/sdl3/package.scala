@@ -94,6 +94,14 @@ package object sdl3:
   // ---- hint names ----
   val HINT_RENDER_VSYNC = "SDL_RENDER_VSYNC"
 
+  // ---- audio ----
+  /** `SDL_AUDIO_F32LE` — 32-bit little-endian float samples in [-1, 1], the natural format for
+    * synthesised PCM. */
+  val AUDIO_F32 = 0x8120
+  /** `SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK` — the special device id selecting the system's default
+    * output. It is `(SDL_AudioDeviceID)0xFFFFFFFF`; pass it to [[openAudioStream]]. */
+  val AUDIO_DEVICE_DEFAULT_PLAYBACK = 0xffffffff
+
   /** An RGBA colour, 0–255 per channel. Not a pointer, so a plain case class. */
   final case class Color(r: Int, g: Int, b: Int, a: Int = 255)
 
@@ -364,6 +372,61 @@ package object sdl3:
     def width: Int      = !((ptr + 8).asInstanceOf[Ptr[CInt]])
     def height: Int     = !((ptr + 12).asInstanceOf[Ptr[CInt]])
     def free(): Unit    = sdl.SDL_DestroySurface(ptr)
+
+  // ---- audio (push/queue model) ----
+  //
+  // These wrap SDL's "open a device stream with a null callback" path: SDL runs its own audio
+  // thread and pulls from the stream's internal queue, so the caller never supplies a callback
+  // and never starts a thread — it synthesises a finished buffer and pushes it with
+  // [[AudioStream.put]]. Ideal for short one-shot effects whose samples are known up front.
+
+  /** Bring up the audio subsystem (independent of video, so it can follow window creation).
+    * `true` on success. */
+  def initAudio(): Boolean = sdl.SDL_InitSubSystem(INIT_AUDIO.toUInt)
+
+  def quitAudio(): Unit = sdl.SDL_QuitSubSystem(INIT_AUDIO.toUInt)
+
+  /** Open a playback stream on the default device for float32 PCM at `freq` Hz and `channels`
+    * channels, and start it. Push samples with [[AudioStream.put]]; check [[AudioStream.isNull]]
+    * for failure. Opening several streams on the default device is fine — SDL mixes them — which
+    * is how overlapping effects play at once. */
+  def openAudioStream(freq: Int, channels: Int = 1): AudioStream =
+    val spec = stackalloc[CInt](3) // {SDL_AudioFormat format; int channels; int freq}
+    spec(0) = AUDIO_F32
+    spec(1) = channels
+    spec(2) = freq
+    val s = new AudioStream(
+      sdl.SDL_OpenAudioDeviceStream(AUDIO_DEVICE_DEFAULT_PLAYBACK.toUInt, spec.asInstanceOf[Ptr[Byte]], null, null),
+    )
+    if !s.isNull then s.resume()
+    s
+
+  /** A float32 PCM playback stream. Pointer-wrapping AnyVal, like the other handles. */
+  implicit class AudioStream(val ptr: sdl.SDL_AudioStream) extends AnyVal:
+    def isNull: Boolean   = ptr == null
+    def resume(): Boolean = sdl.SDL_ResumeAudioStreamDevice(ptr)
+    def pause(): Boolean  = sdl.SDL_PauseAudioStreamDevice(ptr)
+
+    /** Queue float32 samples (each in [-1, 1]) for playback. SDL copies them synchronously, so
+      * the array can be reused or collected immediately after. */
+    def put(samples: Array[Float]): Boolean =
+      val n = samples.length
+      if n == 0 then true
+      else
+        val buf = stdlib.malloc((n * 4).toUSize).asInstanceOf[Ptr[Float]]
+        var i   = 0
+        while i < n do
+          buf(i) = samples(i)
+          i += 1
+        val ok = sdl.SDL_PutAudioStreamData(ptr, buf.asInstanceOf[Ptr[Byte]], n * 4)
+        stdlib.free(buf.asInstanceOf[Ptr[Byte]])
+        ok
+
+    /** Bytes still queued but not yet consumed by the device — 0 means the voice is idle, which
+      * lets a player pick a free stream to avoid cutting off a sound that is still playing. */
+    def queued: Int      = sdl.SDL_GetAudioStreamQueued(ptr)
+    def clear(): Boolean = sdl.SDL_ClearAudioStream(ptr)
+    def destroy(): Unit  = sdl.SDL_DestroyAudioStream(ptr)
 
   // ---- events ----
 
