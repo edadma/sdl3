@@ -50,6 +50,22 @@ window.destroy()
 A window is **not** high-DPI unless created with `WINDOW_HIGH_PIXEL_DENSITY`; otherwise
 `sizeInPixels == size`.
 
+### Displays
+
+Query the desktop so a window opens fully on-screen rather than spilling off a panel
+smaller than the requested size:
+
+```scala
+val display = getPrimaryDisplay                 // primary display id (0 if none)
+getDisplayForWindow(window)                     // the display a window is mostly on
+displayUsableBounds(display)                    // Option[(x, y, w, h)]
+```
+
+The usable bounds are the desktop area minus space the system reserves — the menu bar, a
+taskbar or dock — so clamping a `createWindow` size to the returned `w`×`h` (and placing
+the window at `(x, y)`) keeps the whole window, including content at its bottom and right
+edges, on-screen. `None` means SDL could not report the bounds.
+
 ## Renderer
 
 The renderer is the 2D drawing context. Coordinates are `Double`.
@@ -163,7 +179,10 @@ while e.isDefined do
 ```
 
 Event kinds: `QUIT`, `KEY_DOWN`, `KEY_UP`, `TEXT_INPUT`, `MOUSE_MOTION`, `MOUSE_BUTTON_DOWN`,
-`MOUSE_BUTTON_UP`, `MOUSE_WHEEL`. Field accessors: `keyScancode`, `keyRepeat`, `keyMod` (the
+`MOUSE_BUTTON_UP`, `MOUSE_WHEEL`, `WINDOW_RESIZED` (logical size changed), and
+`WINDOW_PIXEL_SIZE_CHANGED` (backbuffer pixel size changed — the same moment on a 1× display,
+and also when a window moves between displays of differing density; re-query `window.size` /
+`window.sizeInPixels` and rebuild any sized backbuffer). Field accessors: `keyScancode`, `keyRepeat`, `keyMod` (the
 active modifier bitmask — test with `KMOD_SHIFT` / `KMOD_CTRL` / `KMOD_ALT` / `KMOD_GUI`),
 `mouseX`, `mouseY`, `mouseButton` (1 = left, 2 = middle, 3 = right), `wheelX`, `wheelY`
 (positive y = away from the user), `text` (for `TEXT_INPUT`).

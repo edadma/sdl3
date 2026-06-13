@@ -45,6 +45,13 @@ object LibSDL3:
   def SDL_StartTextInput(window: SDL_Window): CBool                                 = extern
   def SDL_StopTextInput(window: SDL_Window): CBool                                  = extern
 
+  // Displays. SDL_DisplayID is a Uint32; the usable bounds exclude space the desktop
+  // reserves (the menu bar, a taskbar/dock), so a window sized to them stays fully
+  // visible. SDL_Rect is {int x, y, w, h} — four contiguous CInt the caller provides.
+  def SDL_GetPrimaryDisplay(): UInt                                                 = extern
+  def SDL_GetDisplayForWindow(window: SDL_Window): UInt                             = extern
+  def SDL_GetDisplayUsableBounds(displayID: UInt, rect: Ptr[CInt]): CBool           = extern
+
   def SDL_CreateRenderer(window: SDL_Window, name: CString): SDL_Renderer = extern
   def SDL_DestroyRenderer(renderer: SDL_Renderer): Unit                   = extern
   def SDL_SetRenderDrawColor(renderer: SDL_Renderer, r: UByte, g: UByte, b: UByte, a: UByte): CBool = extern

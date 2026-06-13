@@ -59,6 +59,12 @@ package object sdl3:
 
   // ---- event types (SDL_EVENT_*) ----
   val QUIT              = 0x100
+  // Window events. RESIZED fires when the logical size changes (a user drag, a programmatic
+  // resize); PIXEL_SIZE_CHANGED fires when the backbuffer's pixel size changes — the same
+  // moment on a 1× display, and also when the window moves between displays of different
+  // density. A renderer that owns a sized backbuffer rebuilds it on the latter.
+  val WINDOW_RESIZED            = 0x202
+  val WINDOW_PIXEL_SIZE_CHANGED = 0x208
   val KEY_DOWN          = 0x300
   val KEY_UP            = 0x301
   val TEXT_EDITING      = 0x304
@@ -151,6 +157,22 @@ package object sdl3:
       flags: Long = 0L,
   ): Window =
     Zone(new Window(sdl.SDL_CreateWindow(toCString(title), width, height, flags.toULong)))
+
+  // ---- displays ----
+
+  /** The id of the primary display, or `0` if none is reported. */
+  def getPrimaryDisplay: Int = sdl.SDL_GetPrimaryDisplay().toInt
+
+  /** The id of the display a window is mostly on, or `0` if SDL can't tell. */
+  def getDisplayForWindow(window: Window): Int = sdl.SDL_GetDisplayForWindow(window.ptr).toInt
+
+  /** The usable bounds `(x, y, width, height)` of a display in screen coordinates — the
+    * desktop area minus space the system reserves (a menu bar, a taskbar/dock) — or `None`
+    * if SDL can't report them. A window sized within `width`×`height` fits fully on-screen. */
+  def displayUsableBounds(displayID: Int): Option[(Int, Int, Int, Int)] =
+    val r = stackalloc[CInt](4)
+    if sdl.SDL_GetDisplayUsableBounds(displayID.toUInt, r) then Some((r(0), r(1), r(2), r(3)))
+    else None
 
   // ---- handle wrappers (AnyVal — pointers, zero-cost) ----
 
