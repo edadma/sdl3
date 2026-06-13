@@ -80,6 +80,13 @@ object LibSDL3:
   def SDL_GetTextureSize(texture: SDL_Texture, w: Ptr[Float], h: Ptr[Float]): CBool = extern
   def SDL_DestroySurface(surface: SDL_Surface): Unit                               = extern
 
+  // Clipboard. SDL_GetClipboardText returns a freshly allocated UTF-8 string the caller must
+  // release with SDL_free; it is never null ("" when the clipboard holds no text).
+  def SDL_GetClipboardText(): CString                                              = extern
+  def SDL_SetClipboardText(text: CString): CBool                                   = extern
+  def SDL_HasClipboardText(): CBool                                                = extern
+  def SDL_free(mem: Ptr[Byte]): Unit                                               = extern
+
   def SDL_PollEvent(event: SDL_Event): CBool                                       = extern
   // const bool* — one byte per scancode in SDL3 (was Uint8* in SDL2).
   def SDL_GetKeyboardState(numkeys: Ptr[CInt]): Ptr[CBool]                         = extern

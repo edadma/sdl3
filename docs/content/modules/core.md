@@ -66,6 +66,19 @@ taskbar or dock — so clamping a `createWindow` size to the returned `w`×`h` (
 the window at `(x, y)`) keeps the whole window, including content at its bottom and right
 edges, on-screen. `None` means SDL could not report the bounds.
 
+### Clipboard
+
+The system clipboard, as UTF-8 text:
+
+```scala
+setClipboardText("hello")        // returns Boolean (success)
+hasClipboardText                 // Boolean
+getClipboardText                 // String — "" when the clipboard holds no text
+```
+
+`getClipboardText` copies SDL's freshly allocated buffer into a Scala `String` and frees it,
+so there is nothing for the caller to release.
+
 ## Renderer
 
 The renderer is the 2D drawing context. Coordinates are `Double`.

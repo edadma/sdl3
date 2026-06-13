@@ -174,6 +174,21 @@ package object sdl3:
     if sdl.SDL_GetDisplayUsableBounds(displayID.toUInt, r) then Some((r(0), r(1), r(2), r(3)))
     else None
 
+  // ---- clipboard ----
+
+  /** The clipboard's text, or `""` when it holds none. SDL hands back a freshly allocated string;
+    * it is copied into a Scala `String` and the native buffer freed before returning. */
+  def getClipboardText: String =
+    val p = sdl.SDL_GetClipboardText()
+    try fromCString(p)
+    finally sdl.SDL_free(p.asInstanceOf[Ptr[Byte]])
+
+  /** Replace the clipboard's text; `true` on success. */
+  def setClipboardText(text: String): Boolean = Zone(sdl.SDL_SetClipboardText(toCString(text)))
+
+  /** Whether the clipboard currently holds non-empty text. */
+  def hasClipboardText: Boolean = sdl.SDL_HasClipboardText()
+
   // ---- handle wrappers (AnyVal — pointers, zero-cost) ----
 
   implicit class Window(val ptr: sdl.SDL_Window) extends AnyVal:
