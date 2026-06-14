@@ -41,6 +41,7 @@ handle:
 window.isNull                       // creation failed?
 window.createRenderer()             // or createRenderer("metal") to pick a driver
 window.setPosition(x, y)            // SDL3 has no creation-time position
+window.setTitle("new title")        // update the title bar at runtime
 window.pixelFormat                  // Int
 window.size            : (Int, Int) // logical size, in points
 window.sizeInPixels    : (Int, Int) // backbuffer size, in pixels (≠ size on HiDPI)

@@ -200,6 +200,8 @@ package object sdl3:
       if name == null then new Renderer(sdl.SDL_CreateRenderer(ptr, null))
       else Zone(new Renderer(sdl.SDL_CreateRenderer(ptr, toCString(name))))
     def setPosition(x: Int, y: Int): Unit = sdl.SDL_SetWindowPosition(ptr, x, y)
+    /** Set the window's title bar text. */
+    def setTitle(title: String): Unit = Zone(sdl.SDL_SetWindowTitle(ptr, toCString(title)))
     def pixelFormat: Int                  = sdl.SDL_GetWindowPixelFormat(ptr).toInt
 
     /** Begin delivering text-input events for this window — `TEXT_INPUT` events
