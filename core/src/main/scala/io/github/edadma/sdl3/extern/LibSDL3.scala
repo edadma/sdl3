@@ -78,8 +78,45 @@ object LibSDL3:
   def SDL_UpdateTexture(texture: SDL_Texture, rect: Ptr[Byte], pixels: Ptr[Byte], pitch: CInt): CBool = extern
   def SDL_DestroyTexture(texture: SDL_Texture): Unit                               = extern
   def SDL_SetTextureScaleMode(texture: SDL_Texture, scaleMode: CInt): CBool        = extern
+  def SDL_SetTextureBlendMode(texture: SDL_Texture, blendMode: UInt): CBool        = extern
   def SDL_GetTextureSize(texture: SDL_Texture, w: Ptr[Float], h: Ptr[Float]): CBool = extern
   def SDL_DestroySurface(surface: SDL_Surface): Unit                               = extern
+
+  // Planar-YUV texture upload. The renderer holds the planes in their native layout and the
+  // conversion to RGB happens in the blit's shader, so a decoder hands its frame over as-is: no
+  // CPU colour conversion, and the scale to the destination rectangle comes free with it.
+  //
+  // Both take `const SDL_Rect *rect` — {int x, y, w, h}, null for the whole texture — and one
+  // pointer plus pitch (bytes per row) per plane. SDL_UpdateYUVTexture feeds a 3-plane format
+  // (IYUV/YV12); SDL_UpdateNVTexture feeds a 2-plane one (NV12/NV21) whose chroma is interleaved.
+  def SDL_UpdateYUVTexture(
+      texture: SDL_Texture,
+      rect:    Ptr[Byte],
+      yPlane:  Ptr[Byte],
+      yPitch:  CInt,
+      uPlane:  Ptr[Byte],
+      uPitch:  CInt,
+      vPlane:  Ptr[Byte],
+      vPitch:  CInt,
+  ): CBool = extern
+  def SDL_UpdateNVTexture(
+      texture: SDL_Texture,
+      rect:    Ptr[Byte],
+      yPlane:  Ptr[Byte],
+      yPitch:  CInt,
+      uvPlane: Ptr[Byte],
+      uvPitch: CInt,
+  ): CBool = extern
+
+  // Properties — a typed key/value bag. Needed here because a texture's colorspace can only be
+  // set at creation, through SDL_CreateTextureWithProperties; SDL_CreateTexture has no parameter
+  // for it and defaults YUV to BT.601 limited, which is wrong for HD video (BT.709).
+  type SDL_PropertiesID = UInt
+
+  def SDL_CreateProperties(): SDL_PropertiesID                                            = extern
+  def SDL_DestroyProperties(props: SDL_PropertiesID): Unit                                = extern
+  def SDL_SetNumberProperty(props: SDL_PropertiesID, name: CString, value: CLongLong): CBool = extern
+  def SDL_CreateTextureWithProperties(renderer: SDL_Renderer, props: SDL_PropertiesID): SDL_Texture = extern
 
   // Clipboard. SDL_GetClipboardText returns a freshly allocated UTF-8 string the caller must
   // release with SDL_free; it is never null ("" when the clipboard holds no text).

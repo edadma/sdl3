@@ -51,6 +51,48 @@ package object sdl3:
     * [[Texture.update]]. The value is SDL's `SDL_DEFINE_PIXELFORMAT` encoding for
     * PACKED32 / ARGB / 8888 / 32-bit. */
   val PIXELFORMAT_ARGB8888 = 0x16362004
+
+  // ---- YUV pixel formats ----
+  //
+  // The formats a video decoder actually produces. A texture in one of these takes the decoder's
+  // planes directly ([[Texture.updateYUV]] / [[Texture.updateNV]]) and the renderer converts to
+  // RGB in the blit's shader — so there is no CPU colour conversion on the frame path, and the
+  // scale to the destination rectangle is free. Each value is SDL's `SDL_DEFINE_PIXELFOURCC`
+  // encoding, i.e. the four ASCII bytes packed little-endian.
+  //
+  // Chroma is half resolution on both axes in every planar format here (4:2:0), so the U and V
+  // planes are (width/2) x (height/2).
+
+  /** Planar Y + U + V, three planes. libavcodec's `AV_PIX_FMT_YUV420P` — the common output of an
+    * H.264/HEVC decode, and what [[Texture.updateYUV]] expects. */
+  val PIXELFORMAT_IYUV = 0x56555949
+
+  /** Planar Y + V + U, three planes — IYUV with the chroma planes swapped. */
+  val PIXELFORMAT_YV12 = 0x32315659
+
+  /** Planar Y + interleaved U/V, two planes. What hardware decoders (VideoToolbox, VAAPI) hand
+    * back; feed it with [[Texture.updateNV]]. */
+  val PIXELFORMAT_NV12 = 0x3231564e
+
+  /** Planar Y + interleaved V/U, two planes — NV12 with the chroma order swapped. */
+  val PIXELFORMAT_NV21 = 0x3132564e
+
+  // ---- colorspaces ----
+  //
+  // Only meaningful for a YUV texture, and settable only at creation, through
+  // [[Renderer.createYUVTexture]]. SDL defaults a YUV texture to BT.601 limited, so HD footage
+  // created without an explicit colorspace decodes to visibly wrong colour — greens and reds
+  // shifted. Match what the file declares: BT.709 for HD, BT.601 for SD, JPEG for full-range.
+
+  /** BT.709, limited (studio) range — the colorspace of essentially all HD video. */
+  val COLORSPACE_BT709_LIMITED = 0x21100421
+
+  /** BT.601, limited (studio) range — SD video. SDL's default for YUV when unspecified. */
+  val COLORSPACE_BT601_LIMITED = 0x211018c6
+
+  /** Full-range YUV, as produced by JPEG and by some camera and screen-capture sources. */
+  val COLORSPACE_JPEG = 0x220004c6
+
   val BLENDMODE_NONE          = 0x00000000
   val BLENDMODE_BLEND         = 0x00000001
   val BLENDMODE_ADD           = 0x00000002
@@ -256,8 +298,43 @@ package object sdl3:
     def copy(t: Texture, x: Double, y: Double): Unit =
       val (w, h) = t.size
       copy(t, x, y, w.toDouble, h.toDouble)
+
+    /** Blit a sub-rectangle of a texture into a destination rectangle, both in pixels — the
+      * general form. `src` selects the region of the texture to read (an atlas entry, a frame's
+      * visible area inside a padded decode buffer); `dst` is where it lands on the target, with
+      * any scale between them done by the renderer. */
+    def copy(t: Texture, src: (Double, Double, Double, Double), dst: (Double, Double, Double, Double)): Unit =
+      val s = frect(src._1, src._2, src._3, src._4)
+      val d = frect(dst._1, dst._2, dst._3, dst._4)
+      sdl.SDL_RenderTexture(ptr, t.ptr, s, d)
+
     def createTexture(format: Int, access: Int, w: Int, h: Int): Texture =
       new Texture(sdl.SDL_CreateTexture(ptr, format.toUInt, access, w, h))
+
+    /** Create a YUV texture that declares its `colorspace` — the only way to set one, since it is
+      * fixed at creation and [[createTexture]] has no parameter for it.
+      *
+      * This matters: SDL assumes [[COLORSPACE_BT601_LIMITED]] for a YUV texture created without
+      * one, so HD footage (which is [[COLORSPACE_BT709_LIMITED]]) comes out with shifted colour —
+      * a quiet, wrong-looking result rather than an error. Pass what the source declares.
+      *
+      * `format` should be one of the YUV formats ([[PIXELFORMAT_IYUV]], [[PIXELFORMAT_NV12]], …)
+      * and `access` is normally [[TEXTUREACCESS_STREAMING]], the mode for a texture re-uploaded
+      * every frame. Returns a null texture on failure, as [[createTexture]] does. */
+    def createYUVTexture(format: Int, access: Int, w: Int, h: Int, colorspace: Int): Texture =
+      val props = sdl.SDL_CreateProperties()
+      if props == 0.toUInt then new Texture(null)
+      else
+        Zone {
+          sdl.SDL_SetNumberProperty(props, toCString("SDL.texture.create.format"), format.toLong)
+          sdl.SDL_SetNumberProperty(props, toCString("SDL.texture.create.access"), access.toLong)
+          sdl.SDL_SetNumberProperty(props, toCString("SDL.texture.create.width"), w.toLong)
+          sdl.SDL_SetNumberProperty(props, toCString("SDL.texture.create.height"), h.toLong)
+          sdl.SDL_SetNumberProperty(props, toCString("SDL.texture.create.colorspace"), colorspace.toLong)
+        }
+        val t = sdl.SDL_CreateTextureWithProperties(ptr, props)
+        sdl.SDL_DestroyProperties(props)
+        new Texture(t)
     /** Upload a CPU surface (e.g. from SDL_ttf or SDL_image) to a GPU texture. */
     def createTextureFromSurface(s: Surface): Texture =
       new Texture(sdl.SDL_CreateTextureFromSurface(ptr, s.ptr))
@@ -385,6 +462,37 @@ package object sdl3:
   implicit class Texture(val ptr: sdl.SDL_Texture) extends AnyVal:
     def isNull: Boolean               = ptr == null
     def setScaleMode(mode: Int): Unit = sdl.SDL_SetTextureScaleMode(ptr, mode)
+
+    /** How this texture's pixels combine with what is already in the render target — one of the
+      * `BLENDMODE_*` values. A texture defaults to [[BLENDMODE_NONE]], which *replaces* the
+      * target; set [[BLENDMODE_BLEND]] to have its alpha respected, as a UI layer composited
+      * over content beneath it must. */
+    def setBlendMode(mode: Int): Unit = sdl.SDL_SetTextureBlendMode(ptr, mode.toUInt)
+
+    /** Upload a 3-plane YUV frame (an [[PIXELFORMAT_IYUV]] or [[PIXELFORMAT_YV12]] texture),
+      * replacing all of it. Each plane is a pointer to its first byte and a pitch in **bytes per
+      * row** — which is a decoder's stride, not necessarily the frame width, since planes are
+      * commonly padded for alignment. Chroma planes are half-size on both axes (4:2:0).
+      *
+      * Pass the planes in Y, U, V order regardless of the texture's format: for a YV12 texture
+      * SDL swaps them itself. Mapping from libavcodec, `data(0)/linesize(0)` is Y, `1` is U and
+      * `2` is V. Returns true on success. */
+    def updateYUV(
+        y:      Ptr[Byte],
+        yPitch: Int,
+        u:      Ptr[Byte],
+        uPitch: Int,
+        v:      Ptr[Byte],
+        vPitch: Int,
+    ): Boolean =
+      sdl.SDL_UpdateYUVTexture(ptr, null, y, yPitch, u, uPitch, v, vPitch)
+
+    /** Upload a 2-plane YUV frame (an [[PIXELFORMAT_NV12]] or [[PIXELFORMAT_NV21]] texture),
+      * replacing all of it — the layout hardware decoders produce, where the two chroma channels
+      * are interleaved into one plane. `uvPitch` counts bytes per row of that combined plane, so
+      * for 4:2:0 it spans width/2 U/V *pairs* and is typically the same as `yPitch`. */
+    def updateNV(y: Ptr[Byte], yPitch: Int, uv: Ptr[Byte], uvPitch: Int): Boolean =
+      sdl.SDL_UpdateNVTexture(ptr, null, y, yPitch, uv, uvPitch)
 
     /** Upload a CPU pixel buffer into this (STREAMING) texture, replacing all of it.
       * `pixels` points at the source bytes and `pitch` is the number of bytes per row

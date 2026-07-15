@@ -93,6 +93,40 @@ class Tests extends AnyFreeSpec with Matchers:
     PIXELFORMAT_ARGB8888 shouldBe 0x16362004
   }
 
+  "the YUV pixel formats match SDL's FOURCC encoding" in {
+    // SDL_DEFINE_PIXELFOURCC(A,B,C,D) packs the four ASCII bytes little-endian:
+    //   (A<<0) | (B<<8) | (C<<16) | (D<<24)
+    // Worth pinning: a mistyped digit here is not an error at runtime — the texture is simply
+    // created in the wrong format and the frame decodes to garbage or wrong colour.
+    def fourcc(s: String): Int =
+      (s(0).toInt << 0) | (s(1).toInt << 8) | (s(2).toInt << 16) | (s(3).toInt << 24)
+
+    PIXELFORMAT_IYUV shouldBe fourcc("IYUV")
+    PIXELFORMAT_YV12 shouldBe fourcc("YV12")
+    PIXELFORMAT_NV12 shouldBe fourcc("NV12")
+    PIXELFORMAT_NV21 shouldBe fourcc("NV21")
+
+    // The literals as SDL_pixels.h states them.
+    PIXELFORMAT_IYUV shouldBe 0x56555949
+    PIXELFORMAT_YV12 shouldBe 0x32315659
+    PIXELFORMAT_NV12 shouldBe 0x3231564e
+    PIXELFORMAT_NV21 shouldBe 0x3132564e
+
+    // IYUV/YV12 and NV12/NV21 are each other's chroma-swapped twins, so the pairs must stay
+    // distinct — swapping them turns blue people orange rather than failing.
+    Set(PIXELFORMAT_IYUV, PIXELFORMAT_YV12, PIXELFORMAT_NV12, PIXELFORMAT_NV21).size shouldBe 4
+  }
+
+  "the YUV colorspaces match SDL's SDL_Colorspace values" in {
+    // These decide how the renderer's shader converts YUV to RGB. SDL assumes BT.601 limited for
+    // a YUV texture created without one, so an HD (BT.709) frame left at the default comes out
+    // with shifted colour — quietly wrong, never an error. Pin the values.
+    COLORSPACE_BT709_LIMITED shouldBe 0x21100421
+    COLORSPACE_BT601_LIMITED shouldBe 0x211018c6
+    COLORSPACE_JPEG shouldBe 0x220004c6
+    COLORSPACE_BT709_LIMITED should not be COLORSPACE_BT601_LIMITED
+  }
+
   "text-input event kinds match the SDL_EVENT_* values" in {
     TEXT_INPUT shouldBe 0x303
     TEXT_EDITING shouldBe 0x304
