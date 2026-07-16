@@ -166,12 +166,63 @@ val (w, h) = tex.size
 r.copy(tex)                         // fill the whole target
 r.copy(tex, x, y)                   // at (x, y), the texture's own size
 r.copy(tex, x, y, w, h)            // into a destination rect
+r.copy(tex, src, dst)               // a sub-rect of the texture into a destination rect
 
 tex.destroy()
 
 surface.width; surface.height
 surface.free()
 ```
+
+A texture **replaces** what is under it by default. To composite one over another — a UI layer
+above content, say — give it a blend mode:
+
+```scala
+tex.setBlendMode(BLENDMODE_BLEND)   // NONE / BLEND / ADD / MOD / MUL
+```
+
+## Video frames
+
+A video decoder emits YUV, not RGB. Converting it on the CPU and uploading the result costs a
+colour conversion, a blit, and a scale for every frame — so SDL takes the planes as they are and
+does the conversion **in the blit's shader**, on the GPU, with the scale to the destination
+rectangle thrown in free.
+
+Create a texture in one of the YUV formats and feed it each frame:
+
+```scala
+// 3-plane (IYUV/YV12) — libavcodec's AV_PIX_FMT_YUV420P
+val tex = r.createYUVTexture(PIXELFORMAT_IYUV, TEXTUREACCESS_STREAMING, w, h, COLORSPACE_BT709_LIMITED)
+tex.setScaleMode(SCALEMODE_LINEAR)
+
+tex.updateYUV(y, yPitch, u, uPitch, v, vPitch)
+r.copy(tex, src, dst)
+```
+
+Each plane is a pointer and a **pitch in bytes per row** — the decoder's stride, which is often
+wider than the frame, since planes are commonly padded for alignment. Chroma planes are half-size
+on both axes (4:2:0). Pass the planes in Y, U, V order whatever the format: for a `YV12` texture
+SDL swaps them itself. Mapping from libavcodec, `data(0)`/`linesize(0)` is Y, `1` is U, `2` is V.
+
+Hardware decoders (VideoToolbox, VAAPI) hand back two planes instead, with the chroma
+interleaved:
+
+```scala
+val tex = r.createYUVTexture(PIXELFORMAT_NV12, TEXTUREACCESS_STREAMING, w, h, COLORSPACE_BT709_LIMITED)
+tex.updateNV(y, yPitch, uv, uvPitch)
+```
+
+Formats: `PIXELFORMAT_IYUV` and `PIXELFORMAT_YV12` (3-plane), `PIXELFORMAT_NV12` and
+`PIXELFORMAT_NV21` (2-plane). Each pair is the other's chroma-swapped twin.
+
+[= warning =]
+**Always pass the colorspace the source declares.** It can only be set when the texture is
+created, which is why `createYUVTexture` exists — plain `createTexture` has no parameter for it
+and SDL then assumes `COLORSPACE_BT601_LIMITED`. That is right for SD video and wrong for
+everything HD, which is `COLORSPACE_BT709_LIMITED`. Getting it wrong is not an error; the frame
+just decodes with shifted colour. `COLORSPACE_JPEG` covers full-range sources (JPEG, many cameras
+and screen captures).
+[= /warning =]
 
 ## Events
 
