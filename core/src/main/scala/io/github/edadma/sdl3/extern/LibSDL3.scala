@@ -148,6 +148,21 @@ object LibSDL3:
   // the renderer, and the event queue.
   def SDL_IsMainThread(): CBool = extern
 
+  // ---- cursors ----
+  // An SDL_Cursor is an opaque handle. SDL_CreateSystemCursor takes an SDL_SystemCursor enum
+  // (a plain int here); SDL owns the built-in shapes, so a system cursor is cheap to make and
+  // may be reused. The active cursor is process-wide, not per-window.
+  type SDL_Cursor = Ptr[Byte]
+
+  def SDL_CreateSystemCursor(id: CInt): SDL_Cursor    = extern
+  def SDL_SetCursor(cursor: SDL_Cursor): CBool        = extern
+  def SDL_GetCursor(): SDL_Cursor                     = extern
+  def SDL_GetDefaultCursor(): SDL_Cursor              = extern
+  def SDL_DestroyCursor(cursor: SDL_Cursor): Unit     = extern
+  def SDL_ShowCursor(): CBool                         = extern
+  def SDL_HideCursor(): CBool                         = extern
+  def SDL_CursorVisible(): CBool                      = extern
+
   // Clipboard. SDL_GetClipboardText returns a freshly allocated UTF-8 string the caller must
   // release with SDL_free; it is never null ("" when the clipboard holds no text).
   def SDL_GetClipboardText(): CString                                              = extern

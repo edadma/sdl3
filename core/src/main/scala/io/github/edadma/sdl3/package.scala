@@ -116,10 +116,51 @@ package object sdl3:
   val MOUSE_BUTTON_UP   = 0x402
   val MOUSE_WHEEL       = 0x403
 
+  // Drag-and-drop of files/text from the OS onto the window. A drag delivers a BEGIN, then one
+  // DROP_FILE (or DROP_TEXT) per item, then COMPLETE — BEGIN/COMPLETE carry no payload, only the
+  // per-item events do. The dropped path/text is read with [[Event.dropData]]; the drop point
+  // (not set on BEGIN) with [[Event.dropX]]/[[Event.dropY]]. Unlike SDL2, SDL3 owns the string
+  // and frees it after the event is handled, so copy it out (which [[Event.dropData]] does) and
+  // never free it yourself.
+  val DROP_FILE     = 0x1000
+  val DROP_TEXT     = 0x1001
+  val DROP_BEGIN    = 0x1002
+  val DROP_COMPLETE = 0x1003
+  val DROP_POSITION = 0x1004
+
   // ---- mouse button masks (SDL_GetMouseState, SDL_BUTTON_*MASK) ----
   val BUTTON_LMASK = 1
   val BUTTON_MMASK = 2
   val BUTTON_RMASK = 4
+
+  // ---- system cursors (SDL_SystemCursor) ----
+  //
+  // The built-in cursor shapes, passed to [[createSystemCursor]]. These are the values shipped in
+  // SDL 3.4 — the arrow, the I-beam, the eight resize shapes a window/panel divider uses, the move
+  // and not-allowed shapes for a drag, and the link pointer. (SDL's development series adds more —
+  // help, cell, zoom, grab — that are not relied on here.) The two families of resize cursor look
+  // the same on most platforms: `NWSE`/`NESW`/`EW`/`NS` are the diagonal/axis double-arrows, while
+  // the per-edge `N`/`NE`/… names let a platform draw a directional single arrow where it has one.
+  val SYSTEM_CURSOR_DEFAULT     = 0
+  val SYSTEM_CURSOR_TEXT        = 1
+  val SYSTEM_CURSOR_WAIT        = 2
+  val SYSTEM_CURSOR_CROSSHAIR   = 3
+  val SYSTEM_CURSOR_PROGRESS    = 4
+  val SYSTEM_CURSOR_NWSE_RESIZE = 5
+  val SYSTEM_CURSOR_NESW_RESIZE = 6
+  val SYSTEM_CURSOR_EW_RESIZE   = 7
+  val SYSTEM_CURSOR_NS_RESIZE   = 8
+  val SYSTEM_CURSOR_MOVE        = 9
+  val SYSTEM_CURSOR_NOT_ALLOWED = 10
+  val SYSTEM_CURSOR_POINTER     = 11
+  val SYSTEM_CURSOR_NW_RESIZE   = 12
+  val SYSTEM_CURSOR_N_RESIZE    = 13
+  val SYSTEM_CURSOR_NE_RESIZE   = 14
+  val SYSTEM_CURSOR_E_RESIZE    = 15
+  val SYSTEM_CURSOR_SE_RESIZE   = 16
+  val SYSTEM_CURSOR_S_RESIZE    = 17
+  val SYSTEM_CURSOR_SW_RESIZE   = 18
+  val SYSTEM_CURSOR_W_RESIZE    = 19
 
   // ---- key modifiers (SDL_Keymod) ----
   // The modifier bitmask carried by a keyboard event (see [[Event.keyMod]]); the `*_SHIFT`
@@ -247,6 +288,35 @@ package object sdl3:
     * the only one that may create a window, touch a renderer, or pump events. Useful as an
     * assertion at the head of anything a worker thread must hand off rather than do itself. */
   def isMainThread: Boolean = sdl.SDL_IsMainThread()
+
+  // ---- cursors ----
+  //
+  // The mouse pointer's shape is process-wide, not per-window: [[Cursor.set]] changes it
+  // everywhere until the next set. A UI toolkit builds the shapes it needs once (they are cheap,
+  // and SDL caches the platform cursor behind each), keeps the handles, and sets one as the
+  // pointer moves over a resize edge, a link, or a text field.
+
+  /** Create one of the built-in system cursor shapes — `id` is a `SYSTEM_CURSOR_*` value. Returns
+    * a null cursor ([[Cursor.isNull]]) if the shape can't be made. The result is owned by the
+    * caller and freed with [[Cursor.destroy]]; do not destroy [[getDefaultCursor]]. */
+  def createSystemCursor(id: Int): Cursor = new Cursor(sdl.SDL_CreateSystemCursor(id))
+
+  /** The cursor currently set as the active pointer shape, or a null cursor if the default is in
+    * effect and none was set. Does not transfer ownership — never destroy what this returns. */
+  def getCursor: Cursor = new Cursor(sdl.SDL_GetCursor())
+
+  /** The platform's default cursor (the arrow). SDL owns it — do not [[Cursor.destroy]] it. */
+  def getDefaultCursor: Cursor = new Cursor(sdl.SDL_GetDefaultCursor())
+
+  /** Show the mouse cursor (it is visible by default); `true` on success. Visibility is
+    * independent of which shape is set. */
+  def showCursor(): Boolean = sdl.SDL_ShowCursor()
+
+  /** Hide the mouse cursor — for a video player's idle chrome, say, or a game. */
+  def hideCursor(): Boolean = sdl.SDL_HideCursor()
+
+  /** Whether the cursor is currently shown. */
+  def cursorVisible: Boolean = sdl.SDL_CursorVisible()
 
   // ---- file dialogs ----
   //
@@ -749,6 +819,18 @@ package object sdl3:
     def height: Int     = !((ptr + 12).asInstanceOf[Ptr[CInt]])
     def free(): Unit    = sdl.SDL_DestroySurface(ptr)
 
+  /** A mouse cursor shape — a built-in one from [[createSystemCursor]], or the platform default
+    * from [[getDefaultCursor]]. Pointer-wrapping AnyVal, like the other handles. */
+  implicit class Cursor(val ptr: sdl.SDL_Cursor) extends AnyVal:
+    def isNull: Boolean = ptr == null
+
+    /** Make this the active pointer shape, process-wide. `true` on success. */
+    def set(): Boolean = sdl.SDL_SetCursor(ptr)
+
+    /** Free this cursor. Only for cursors you created ([[createSystemCursor]]); never call it on
+      * [[getDefaultCursor]] or on what [[getCursor]] hands back. */
+    def destroy(): Unit = sdl.SDL_DestroyCursor(ptr)
+
   // ---- audio (push/queue model) ----
   //
   // These wrap SDL's "open a device stream with a null callback" path: SDL runs its own audio
@@ -851,6 +933,26 @@ package object sdl3:
     def text: String =
       val s = !((ptr + 24).asInstanceOf[Ptr[CString]])
       if s == null then "" else fromCString(s)
+
+    /** Drop events (`DROP_FILE`/`DROP_TEXT`): the dropped file path or text. In SDL3's 64-bit
+      * layout `SDL_DropEvent.data` is a `const char *` at offset 40 (after `windowID`(16), the
+      * `x`/`y` floats at 20/24, pointer padding, and the `source` pointer at 32). SDL frees the
+      * string once the event is handled, so it is copied straight into a Scala `String` here;
+      * empty for the payload-less `DROP_BEGIN`/`DROP_COMPLETE`. */
+    def dropData: String =
+      val s = !((ptr + 40).asInstanceOf[Ptr[CString]])
+      if s == null then "" else fromCString(s)
+
+    /** Drop events: the app that started the drag, or `""` when the platform doesn't say
+      * (`SDL_DropEvent.source`, the `const char *` at offset 32). */
+    def dropSource: String =
+      val s = !((ptr + 32).asInstanceOf[Ptr[CString]])
+      if s == null then "" else fromCString(s)
+
+    /** Drop events: the drop point in window coordinates (`SDL_DropEvent.x`/`y`, the floats at
+      * offsets 20 and 24). Not populated on `DROP_BEGIN`. */
+    def dropX: Double = f32(20).toDouble
+    def dropY: Double = f32(24).toDouble
 
   // ---- event watches: the libuv-style callback map pattern ----
   //

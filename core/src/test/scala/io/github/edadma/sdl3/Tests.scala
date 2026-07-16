@@ -174,6 +174,65 @@ class Tests extends AnyFreeSpec with Matchers:
     (mods & KMOD_ALT) shouldBe 0
   }
 
+  "system cursor ids match SDL_SystemCursor, contiguous from 0" in {
+    // A wrong value here is not an error — SDL just makes a different shape, or none. Pin the
+    // ordering too: NWSE/NESW and the per-edge resize names are easy to transpose, and a swap
+    // gives a plausible-looking but wrong cursor.
+    SYSTEM_CURSOR_DEFAULT shouldBe 0
+    SYSTEM_CURSOR_POINTER shouldBe 11
+    SYSTEM_CURSOR_W_RESIZE shouldBe 19
+    val all = Seq(
+      SYSTEM_CURSOR_DEFAULT, SYSTEM_CURSOR_TEXT, SYSTEM_CURSOR_WAIT, SYSTEM_CURSOR_CROSSHAIR,
+      SYSTEM_CURSOR_PROGRESS, SYSTEM_CURSOR_NWSE_RESIZE, SYSTEM_CURSOR_NESW_RESIZE,
+      SYSTEM_CURSOR_EW_RESIZE, SYSTEM_CURSOR_NS_RESIZE, SYSTEM_CURSOR_MOVE, SYSTEM_CURSOR_NOT_ALLOWED,
+      SYSTEM_CURSOR_POINTER, SYSTEM_CURSOR_NW_RESIZE, SYSTEM_CURSOR_N_RESIZE, SYSTEM_CURSOR_NE_RESIZE,
+      SYSTEM_CURSOR_E_RESIZE, SYSTEM_CURSOR_SE_RESIZE, SYSTEM_CURSOR_S_RESIZE, SYSTEM_CURSOR_SW_RESIZE,
+      SYSTEM_CURSOR_W_RESIZE,
+    )
+    all shouldBe (0 to 19)
+  }
+
+  "drop event kinds match the SDL_EVENT_DROP_* values" in {
+    DROP_FILE shouldBe 0x1000
+    DROP_TEXT shouldBe 0x1001
+    DROP_BEGIN shouldBe 0x1002
+    DROP_COMPLETE shouldBe 0x1003
+    DROP_POSITION shouldBe 0x1004
+  }
+
+  "drop event accessors read SDL_DropEvent at the documented offsets" in {
+    // SDL_DropEvent's 64-bit layout: windowID(16), x(20), y(24), pointer padding, source(32),
+    // data(40). A wrong offset reads a neighbouring field — the file path as the source app, or
+    // garbage — with no error, so fabricate one and read every accessor back.
+    Zone {
+      val buf = stackalloc[Byte](128)
+      var i   = 0
+      while i < 128 do { buf(i) = 0.toByte; i += 1 }
+      !((buf + 20).asInstanceOf[Ptr[Float]]) = 12.5f
+      !((buf + 24).asInstanceOf[Ptr[Float]]) = 34.0f
+      !((buf + 32).asInstanceOf[Ptr[CString]]) = toCString("Finder")
+      !((buf + 40).asInstanceOf[Ptr[CString]]) = toCString("/Users/ed/clip.mp4")
+      val e = new Event(buf)
+      e.dropX shouldBe 12.5
+      e.dropY shouldBe 34.0
+      e.dropSource shouldBe "Finder"
+      e.dropData shouldBe "/Users/ed/clip.mp4"
+    }
+  }
+
+  "drop accessors return empty strings for a payload-less event" in {
+    // DROP_BEGIN/DROP_COMPLETE carry null source and data pointers; the accessors must yield ""
+    // rather than dereferencing null.
+    Zone {
+      val buf = stackalloc[Byte](128)
+      var i   = 0
+      while i < 128 do { buf(i) = 0.toByte; i += 1 }
+      val e = new Event(buf)
+      e.dropData shouldBe ""
+      e.dropSource shouldBe ""
+    }
+  }
+
   // File dialogs. A dialog that SDL accepts puts a panel on the screen and waits for a human,
   // so what is testable headlessly is the paths SDL rejects — which is the useful half anyway:
   // rejection travels back through the callback rather than a return value, so exercising it
