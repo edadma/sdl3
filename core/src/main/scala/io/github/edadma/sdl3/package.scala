@@ -142,6 +142,12 @@ package object sdl3:
   // ---- hint names ----
   val HINT_RENDER_VSYNC = "SDL_RENDER_VSYNC"
 
+  /** Selects a file-dialog backend by name. Only Linux has more than one to choose between
+    * ("portal", "zenity"); every other platform has exactly one and **fails the dialog** if this
+    * is set to anything at all. That makes it a way to exercise a dialog's whole path — filters,
+    * properties, callback — without a panel appearing, which is what the tests use it for. */
+  val HINT_FILE_DIALOG_DRIVER = "SDL_FILE_DIALOG_DRIVER"
+
   // ---- audio ----
   /** `SDL_AUDIO_F32LE` — 32-bit little-endian float samples in [-1, 1], the natural format for
     * synthesised PCM. */
@@ -189,6 +195,10 @@ package object sdl3:
   def setHint(name: String, value: String): Boolean =
     Zone(sdl.SDL_SetHint(toCString(name), toCString(value)))
 
+  /** Return a hint to its default, as though [[setHint]] had never been called for it. Not the
+    * same as setting it to `""`, which is a value like any other. */
+  def resetHint(name: String): Boolean = Zone(sdl.SDL_ResetHint(toCString(name)))
+
   /** Create a window. SDL copies the title, so it is freed when the zone closes.
     * SDL3 has no creation-time position; use [[Window.setPosition]] afterwards.
     */
@@ -230,6 +240,213 @@ package object sdl3:
 
   /** Whether the clipboard currently holds non-empty text. */
   def hasClipboardText: Boolean = sdl.SDL_HasClipboardText()
+
+  // ---- threads ----
+
+  /** Whether the caller is running on SDL's main thread — the one SDL was initialised on, and
+    * the only one that may create a window, touch a renderer, or pump events. Useful as an
+    * assertion at the head of anything a worker thread must hand off rather than do itself. */
+  def isMainThread: Boolean = sdl.SDL_IsMainThread()
+
+  // ---- file dialogs ----
+  //
+  // The system's own file chooser — a real Finder/Explorer panel, not something drawn by the app.
+  //
+  // Threading: SDL documents that the callback "may be called from a different thread", but on
+  // macOS it never is. The Cocoa backend either runs the panel as a sheet on the parent window,
+  // whose completion handler the main run loop invokes during event pumping, or — with no parent
+  // window — calls `runModal`, which blocks and invokes the callback before the call even
+  // returns. Both are the main thread, so a Scala closure is safe here, exactly as it is for an
+  // event watch. The same holds for Linux's XDG-portal backend (DBus messages, delivered while
+  // pumping). Linux's zenity fallback is the exception: it runs the callback on an SDL-created
+  // worker thread, which Scala Native's GC knows nothing about. Revisit before relying on this
+  // on a portal-less Linux.
+  //
+  // Note the consequence of that `runModal` path: without a `window` the call BLOCKS until the
+  // user chooses, so an app that draws its own frames stops drawing them. Pass the window.
+  //
+  // One SDL wart to know about: the Cocoa sheet path answers only NSModalResponseOK and
+  // NSModalResponseCancel, so a sheet ended any other way (dismissed programmatically) never
+  // calls back at all. This binding's per-dialog callback and filter array are freed by the
+  // callback, so such a dialog strands both. It takes a deliberate act to provoke and leaks a
+  // closure and a few bytes, so it is left as SDL has it rather than guessed around.
+
+  /** The kind of panel [[showFileDialog]] presents. */
+  val FILEDIALOG_OPENFILE   = 0
+  val FILEDIALOG_SAVEFILE   = 1
+  val FILEDIALOG_OPENFOLDER = 2
+
+  /** One entry in a file dialog's filter list. `name` is what the user reads ("Video files");
+    * `pattern` is a semicolon-separated extension list ("mp4;mov;mkv"), with no dots and no
+    * globs — or the single string `"*"`, which means "all files".
+    *
+    * Filters are advisory: not every platform honours them, and those that do may still let the
+    * user defeat them. Never treat a returned path as matching. */
+  final case class FileFilter(name: String, pattern: String)
+
+  /** What the user did with a file dialog. Cancelling is a normal outcome and a distinct one
+    * from failure — SDL reports them differently and so does this. */
+  enum DialogResult:
+    /** One or more chosen paths; never empty. A save dialog's path may not exist yet, and on
+      * every platform the file may have been deleted or replaced since. */
+    case Chosen(paths: Seq[String])
+
+    /** The user dismissed the dialog without choosing. */
+    case Cancelled
+
+    /** The dialog could not be shown, or failed while up; `message` is SDL's error text. */
+    case Failed(message: String)
+
+  // A dialog's Scala closure and its C filter array both have to outlive the call that starts
+  // it, so they are held here under an id that SDL carries as opaque `userdata` and hands back.
+  // Same trampoline pattern as the event watches, for the same reason: SDL takes a C function
+  // pointer, so the closure must be found again rather than passed. The trampoline is what
+  // empties both maps; that they do end up empty is the "nothing leaked" invariant the tests
+  // assert, which is why these are package-private rather than private.
+  private[sdl3] val dialogCallbacks  = mutable.HashMap[Int, DialogResult => Unit]()
+  private[sdl3] val dialogFilterBufs = mutable.HashMap[Int, (Ptr[sdl.SDL_DialogFileFilter], Int)]()
+  private var nextDialogId           = 0
+
+  /** A C copy of `s` that outlives the call, for the filter strings SDL holds by pointer until
+    * the callback. `Zone`/`toCString` would free them at the end of the enclosing block, which
+    * for a sheet is long before the user has chosen anything. */
+  private def cstrdup(s: String): CString =
+    val bytes = s.getBytes("UTF-8")
+    val p     = stdlib.malloc((bytes.length + 1).toUSize)
+    var i     = 0
+    while i < bytes.length do
+      p(i) = bytes(i)
+      i += 1
+    p(bytes.length) = 0.toByte
+    p
+
+  private def freeFilters(buf: (Ptr[sdl.SDL_DialogFileFilter], Int)): Unit =
+    val (arr, n) = buf
+    var i        = 0
+    while i < n do
+      stdlib.free((arr + i)._1)
+      stdlib.free((arr + i)._2)
+      i += 1
+    stdlib.free(arr.asInstanceOf[Ptr[Byte]])
+
+  private val dialogTrampoline: sdl.SDL_DialogFileCallback =
+    (userdata: Ptr[Byte], filelist: Ptr[CString], _: CInt) =>
+      val id = !userdata.asInstanceOf[Ptr[CInt]]
+      stdlib.free(userdata)
+      val callback = dialogCallbacks.remove(id)
+      dialogFilterBufs.remove(id).foreach(freeFilters)
+      callback.foreach { f =>
+        f(
+          if filelist == null then DialogResult.Failed(error)
+          else
+            val paths = Seq.newBuilder[String]
+            var i     = 0
+            while filelist(i) != null do
+              paths += fromCString(filelist(i))
+              i += 1
+            val chosen = paths.result()
+            // A pointer to null is SDL's "the user cancelled" — distinct from the null list
+            // that means the dialog itself failed.
+            if chosen.isEmpty then DialogResult.Cancelled else DialogResult.Chosen(chosen),
+        )
+      }
+
+  /** Show a system file dialog and deliver the outcome to `callback`.
+    *
+    * `dialogType` is one of [[FILEDIALOG_OPENFILE]], [[FILEDIALOG_SAVEFILE]] or
+    * [[FILEDIALOG_OPENFOLDER]]; the convenience wrappers [[showOpenFileDialog]],
+    * [[showSaveFileDialog]] and [[showOpenFolderDialog]] name them.
+    *
+    * Pass `window` to get a sheet attached to it, which leaves the app running while the dialog
+    * is up; without one the call blocks until the user is done (see the note above). Everything
+    * else is a hint that a platform may ignore: `defaultLocation` (a directory if it ends in a
+    * separator, otherwise a directory and a pre-filled name), `allowMany`, and the `title` /
+    * `accept` / `cancel` labels.
+    *
+    * The callback runs once and is then forgotten. Several dialogs may be open at a time; each
+    * has its own id. */
+  def showFileDialog(
+      dialogType:      Int,
+      window:          Window = new Window(null),
+      filters:         Seq[FileFilter] = Nil,
+      defaultLocation: String = null,
+      allowMany:       Boolean = false,
+      title:           String = null,
+      accept:          String = null,
+      cancel:          String = null,
+  )(callback: DialogResult => Unit): Unit =
+    val id = nextDialogId
+    nextDialogId += 1
+    dialogCallbacks(id) = callback
+
+    if filters.nonEmpty then
+      val n   = filters.length
+      val arr = stdlib.malloc((n * sizeof[sdl.SDL_DialogFileFilter].toInt).toUSize)
+        .asInstanceOf[Ptr[sdl.SDL_DialogFileFilter]]
+      for (f, i) <- filters.zipWithIndex do
+        (arr + i)._1 = cstrdup(f.name)
+        (arr + i)._2 = cstrdup(f.pattern)
+      dialogFilterBufs(id) = (arr, n)
+
+    // SDL hands `userdata` back untouched; a malloc'd int is the simplest thing to key the map
+    // on that does not depend on casting an integer to a pointer. The trampoline frees it.
+    val userdata = stdlib.malloc(4.toUSize).asInstanceOf[Ptr[CInt]]
+    !userdata = id
+
+    val props = sdl.SDL_CreateProperties()
+    // The property strings are copied by SDL, so the zone may reclaim them on the way out. The
+    // filters array is NOT copied — hence the malloc above and the free in the trampoline.
+    Zone {
+      dialogFilterBufs.get(id).foreach { (arr, n) =>
+        sdl.SDL_SetPointerProperty(props, toCString("SDL.filedialog.filters"), arr.asInstanceOf[Ptr[Byte]])
+        sdl.SDL_SetNumberProperty(props, toCString("SDL.filedialog.nfilters"), n.toLong)
+      }
+      if !window.isNull then
+        sdl.SDL_SetPointerProperty(props, toCString("SDL.filedialog.window"), window.ptr)
+      if defaultLocation != null then
+        sdl.SDL_SetStringProperty(props, toCString("SDL.filedialog.location"), toCString(defaultLocation))
+      if allowMany then sdl.SDL_SetBooleanProperty(props, toCString("SDL.filedialog.many"), true)
+      if title != null then sdl.SDL_SetStringProperty(props, toCString("SDL.filedialog.title"), toCString(title))
+      if accept != null then sdl.SDL_SetStringProperty(props, toCString("SDL.filedialog.accept"), toCString(accept))
+      if cancel != null then sdl.SDL_SetStringProperty(props, toCString("SDL.filedialog.cancel"), toCString(cancel))
+      sdl.SDL_ShowFileDialogWithProperties(dialogType, dialogTrampoline, userdata.asInstanceOf[Ptr[Byte]], props)
+    }
+    sdl.SDL_DestroyProperties(props)
+
+  /** Ask the user to pick an existing file (or several, with `allowMany`). See [[showFileDialog]]. */
+  def showOpenFileDialog(
+      window:          Window = new Window(null),
+      filters:         Seq[FileFilter] = Nil,
+      defaultLocation: String = null,
+      allowMany:       Boolean = false,
+      title:           String = null,
+      accept:          String = null,
+      cancel:          String = null,
+  )(callback: DialogResult => Unit): Unit =
+    showFileDialog(FILEDIALOG_OPENFILE, window, filters, defaultLocation, allowMany, title, accept, cancel)(callback)
+
+  /** Ask the user to name a file to write. The chosen path need not exist, and the panel does the
+    * "already exists — overwrite?" prompt itself. See [[showFileDialog]]. */
+  def showSaveFileDialog(
+      window:          Window = new Window(null),
+      filters:         Seq[FileFilter] = Nil,
+      defaultLocation: String = null,
+      title:           String = null,
+      accept:          String = null,
+      cancel:          String = null,
+  )(callback: DialogResult => Unit): Unit =
+    showFileDialog(FILEDIALOG_SAVEFILE, window, filters, defaultLocation, false, title, accept, cancel)(callback)
+
+  /** Ask the user to pick a folder. Filters do not apply. See [[showFileDialog]]. */
+  def showOpenFolderDialog(
+      window:          Window = new Window(null),
+      defaultLocation: String = null,
+      allowMany:       Boolean = false,
+      title:           String = null,
+      accept:          String = null,
+      cancel:          String = null,
+  )(callback: DialogResult => Unit): Unit =
+    showFileDialog(FILEDIALOG_OPENFOLDER, window, Nil, defaultLocation, allowMany, title, accept, cancel)(callback)
 
   // ---- handle wrappers (AnyVal — pointers, zero-cost) ----
 

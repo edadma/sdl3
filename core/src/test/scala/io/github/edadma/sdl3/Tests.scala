@@ -1,5 +1,6 @@
 package io.github.edadma.sdl3
 
+import scala.collection.mutable
 import scala.scalanative.unsafe.*
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
@@ -171,6 +172,66 @@ class Tests extends AnyFreeSpec with Matchers:
     (mods & KMOD_SHIFT) should not be 0
     (mods & KMOD_CTRL) should not be 0
     (mods & KMOD_ALT) shouldBe 0
+  }
+
+  // File dialogs. A dialog that SDL accepts puts a panel on the screen and waits for a human,
+  // so what is testable headlessly is the paths SDL rejects — which is the useful half anyway:
+  // rejection travels back through the callback rather than a return value, so exercising it
+  // drives the whole trampoline (the userdata round-trip, the map lookup, the frees) with no
+  // window, no SDL_Init, and no user.
+
+  "a file dialog reports an invalid filter pattern through the callback" in {
+    var result: Option[DialogResult] = None
+    // The glob a user would reach for first. SDL's patterns are bare extensions, so this is
+    // rejected before anything is shown.
+    showOpenFileDialog(filters = Seq(FileFilter("Video", "*.mp4")))(r => result = Some(r))
+    result match
+      case Some(DialogResult.Failed(msg)) => msg should include("Invalid character in pattern")
+      case other                          => fail(s"expected a Failed result, got $other")
+  }
+
+  "a file dialog rejects an unknown dialog type through the callback" in {
+    var result: Option[DialogResult] = None
+    showFileDialog(99)(r => result = Some(r))
+    result match
+      case Some(DialogResult.Failed(msg)) => msg should include("Unsupported file dialog type")
+      case other                          => fail(s"expected a Failed result, got $other")
+  }
+
+  "a finished dialog leaves nothing behind" in {
+    // The callback closure and the malloc'd filters array both outlive the call that starts a
+    // dialog, so the trampoline owns freeing them. Two dialogs in flight at once also checks
+    // that the userdata id — not some single global — is what pairs a result with its callback.
+    val seen = mutable.ArrayBuffer[String]()
+    showOpenFileDialog(filters = Seq(FileFilter("A", "*.a")))(_ => seen += "a")
+    showOpenFileDialog(filters = Seq(FileFilter("B", "*.b"), FileFilter("C", "*.c")))(_ => seen += "b")
+    seen.toSeq shouldBe Seq("a", "b")
+    dialogCallbacks shouldBe empty
+    dialogFilterBufs shouldBe empty
+  }
+
+  "a valid dialog reaches the platform backend and answers through the callback" in {
+    // The two tests above are rejected by SDL's generic layer, so they never reach the platform
+    // at all. This one passes everything SDL validates — real extension patterns, a title, button
+    // labels — and gets stopped inside the macOS backend itself, by a hint that no platform but
+    // Linux accepts a value for. So the panel never opens, but the properties did travel the
+    // whole way down and the answer came back up through the trampoline.
+    setHint(HINT_FILE_DIALOG_DRIVER, "definitely-not-a-driver")
+    try
+      var result: Option[DialogResult] = None
+      showOpenFileDialog(
+        filters = Seq(FileFilter("Video", "mp4;mov;mkv"), FileFilter("All files", "*")),
+        title = "Open a clip",
+        accept = "Open",
+        cancel = "Never mind",
+        allowMany = true,
+      )(r => result = Some(r))
+      result match
+        case Some(DialogResult.Failed(msg)) => msg should include("File dialog driver")
+        case other                          => fail(s"expected a Failed result, got $other")
+      dialogCallbacks shouldBe empty
+      dialogFilterBufs shouldBe empty
+    finally resetHint(HINT_FILE_DIALOG_DRIVER)
   }
 
   "buildThickLine makes a width-wide quad and rejects zero length" in {

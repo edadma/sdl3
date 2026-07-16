@@ -24,7 +24,7 @@ module with examples — is at **[sdl3.edadma.dev](https://sdl3.edadma.dev/)** (
 
 | Module   | Artifact                       | System library | Description |
 |----------|--------------------------------|----------------|-------------|
-| `core`   | `io.github.edadma::sdl3`       | `SDL3`         | Window (incl. resize events and display usable bounds), float render API (incl. `RenderGeometry` fills), textures (incl. YUV video frames with GPU colour conversion), surfaces, events, keyboard/mouse, clipboard, hints, render targets, PCM audio playback |
+| `core`   | `io.github.edadma::sdl3`       | `SDL3`         | Window (incl. resize events and display usable bounds), float render API (incl. `RenderGeometry` fills), textures (incl. YUV video frames with GPU colour conversion), surfaces, events, keyboard/mouse, clipboard, native file dialogs, hints, render targets, PCM audio playback |
 | `ttf`    | `io.github.edadma::sdl3_ttf`   | `SDL3_ttf`     | Font loading and text rendering (built on `core`) |
 | `image`  | `io.github.edadma::sdl3_image` | `SDL3_image`   | Image decoding to surfaces/textures (built on `core`) |
 | `mixer`  | `io.github.edadma::sdl3_mixer` | `SDL3_mixer`   | Audio *file* loading and mixing — music and decoded effects (built on `core`). For raw/synthesised PCM, `core`'s audio streams need no extra system library. |

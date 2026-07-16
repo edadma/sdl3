@@ -34,6 +34,7 @@ object LibSDL3:
   def SDL_GetError(): CString                             = extern
   def SDL_Delay(ms: UInt): Unit                           = extern
   def SDL_SetHint(name: CString, value: CString): CBool   = extern
+  def SDL_ResetHint(name: CString): CBool                 = extern
 
   // SDL_WindowFlags is a 64-bit mask in SDL3; position is set separately.
   def SDL_CreateWindow(title: CString, w: CInt, h: CInt, flags: ULong): SDL_Window = extern
@@ -116,7 +117,36 @@ object LibSDL3:
   def SDL_CreateProperties(): SDL_PropertiesID                                            = extern
   def SDL_DestroyProperties(props: SDL_PropertiesID): Unit                                = extern
   def SDL_SetNumberProperty(props: SDL_PropertiesID, name: CString, value: CLongLong): CBool = extern
+  // SDL copies a string property's value, so the source can be freed straight after. A pointer
+  // property is stored as-is and must outlive whatever reads it.
+  def SDL_SetStringProperty(props: SDL_PropertiesID, name: CString, value: CString): CBool = extern
+  def SDL_SetPointerProperty(props: SDL_PropertiesID, name: CString, value: Ptr[Byte]): CBool = extern
+  def SDL_SetBooleanProperty(props: SDL_PropertiesID, name: CString, value: CBool): CBool = extern
   def SDL_CreateTextureWithProperties(renderer: SDL_Renderer, props: SDL_PropertiesID): SDL_Texture = extern
+
+  // ---- file dialogs ----
+  // SDL_DialogFileFilter is {const char *name; const char *pattern} — two contiguous pointers.
+  type SDL_DialogFileFilter = CStruct2[CString, CString]
+
+  // void (*)(void *userdata, const char * const *filelist, int filter). `filelist` is null on
+  // error, a pointer to null when the user cancelled, otherwise a null-terminated array of UTF-8
+  // paths. It is freed as soon as the callback returns, so anything kept must be copied out.
+  type SDL_DialogFileCallback = CFuncPtr3[Ptr[Byte], Ptr[CString], CInt, Unit]
+
+  // Takes its settings as properties rather than parameters, which is the only form that reaches
+  // the dialog's title and button labels. The properties are read synchronously — SDL's own
+  // convenience wrappers destroy the set immediately after this returns — but a filters array
+  // passed by pointer must stay alive until the callback runs.
+  def SDL_ShowFileDialogWithProperties(
+      dialogType: CInt,
+      callback:   SDL_DialogFileCallback,
+      userdata:   Ptr[Byte],
+      props:      SDL_PropertiesID,
+  ): Unit = extern
+
+  // Whether this is the thread SDL was initialised on — the one that may touch the window,
+  // the renderer, and the event queue.
+  def SDL_IsMainThread(): CBool = extern
 
   // Clipboard. SDL_GetClipboardText returns a freshly allocated UTF-8 string the caller must
   // release with SDL_free; it is never null ("" when the clipboard holds no text).
