@@ -892,6 +892,13 @@ package object sdl3:
       * lets a player pick a free stream to avoid cutting off a sound that is still playing. */
     def queued: Int      = sdl.SDL_GetAudioStreamQueued(ptr)
     def clear(): Boolean = sdl.SDL_ClearAudioStream(ptr)
+
+    /** This stream's playback gain: 1.0 leaves the samples unchanged, 0.0 is silence, above 1.0
+      * amplifies (and may clip). SDL applies it as it feeds the device, so a volume control costs
+      * nothing per sample. */
+    def gain: Float             = sdl.SDL_GetAudioStreamGain(ptr)
+    def gain_=(g: Float): Unit  = sdl.SDL_SetAudioStreamGain(ptr, g)
+
     def destroy(): Unit  = sdl.SDL_DestroyAudioStream(ptr)
 
   // ---- events ----

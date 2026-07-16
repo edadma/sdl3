@@ -197,4 +197,8 @@ object LibSDL3:
   // Bytes still queued (not yet handed to the device) — used to pick an idle voice.
   def SDL_GetAudioStreamQueued(stream: SDL_AudioStream): CInt                      = extern
   def SDL_ClearAudioStream(stream: SDL_AudioStream): CBool                         = extern
+  // Per-stream gain: 1.0 leaves the samples unchanged, 0.0 is silence, above 1.0 amplifies (and may
+  // clip). Applied by SDL as it feeds the device, so it costs the app nothing per sample.
+  def SDL_GetAudioStreamGain(stream: SDL_AudioStream): CFloat                      = extern
+  def SDL_SetAudioStreamGain(stream: SDL_AudioStream, gain: CFloat): CBool         = extern
   def SDL_DestroyAudioStream(stream: SDL_AudioStream): Unit                        = extern
