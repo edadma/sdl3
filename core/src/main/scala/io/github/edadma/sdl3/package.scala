@@ -304,7 +304,8 @@ package object sdl3:
       * visible area inside a padded decode buffer); `dst` is where it lands on the target, with
       * any scale between them done by the renderer. */
     def copy(t: Texture, src: (Double, Double, Double, Double), dst: (Double, Double, Double, Double)): Unit =
-      val s = frect(src._1, src._2, src._3, src._4)
+      // The two rects must come from different scratch buffers — see `frect`/`frectSrc`.
+      val s = frectSrc(src._1, src._2, src._3, src._4)
       val d = frect(dst._1, dst._2, dst._3, dst._4)
       sdl.SDL_RenderTexture(ptr, t.ptr, s, d)
 
@@ -379,16 +380,27 @@ package object sdl3:
 
     def destroy(): Unit = sdl.SDL_DestroyRenderer(ptr)
 
-  // A scratch SDL_FRect ({float x, y, w, h}) for the rect-taking render calls. Kept on
+  // Scratch SDL_FRects ({float x, y, w, h}) for the rect-taking render calls. Kept on
   // the heap for the process lifetime rather than `stackalloc`'d: stack memory belongs
   // to the frame that allocates it, so a pointer returned from this helper would dangle
   // the moment the helper returns and SDL would read garbage. Refilled per call and
-  // reused; safe because SDL reads it synchronously within the call, rendering is
-  // single-threaded, and no render call needs two of these live at once.
+  // reused; safe because SDL reads them synchronously within the call and rendering is
+  // single-threaded.
+  //
+  // There are TWO, because `copy(texture, src, dst)` needs both live at once. They are
+  // separate helpers rather than one with an index so that the "which buffer am I in"
+  // question cannot be got wrong at a call site: a source rect uses `frectSrc`, every
+  // other rect uses `frect`. Filling one buffer twice for one call silently aliases the
+  // two arguments — SDL then reads the destination rect as the source and draws nothing.
   private val frectBuf: Ptr[Float] = stdlib.malloc(16.toUSize).asInstanceOf[Ptr[Float]] // 4 × f32
   private[sdl3] def frect(x: Double, y: Double, w: Double, h: Double): Ptr[Float] =
     frectBuf(0) = x.toFloat; frectBuf(1) = y.toFloat; frectBuf(2) = w.toFloat; frectBuf(3) = h.toFloat
     frectBuf
+
+  private val frectSrcBuf: Ptr[Float] = stdlib.malloc(16.toUSize).asInstanceOf[Ptr[Float]] // 4 × f32
+  private[sdl3] def frectSrc(x: Double, y: Double, w: Double, h: Double): Ptr[Float] =
+    frectSrcBuf(0) = x.toFloat; frectSrcBuf(1) = y.toFloat; frectSrcBuf(2) = w.toFloat; frectSrcBuf(3) = h.toFloat
+    frectSrcBuf
 
   // ---- geometry buffer builders (shared by the RenderGeometry helpers) ----
   //

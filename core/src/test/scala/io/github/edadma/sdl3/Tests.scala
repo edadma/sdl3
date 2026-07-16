@@ -85,6 +85,23 @@ class Tests extends AnyFreeSpec with Matchers:
     p(3) shouldBe 78.0f
   }
 
+  "frect and frectSrc hand back independent buffers" in {
+    // Regression: `copy(texture, src, dst)` needs both rects live at once. Filling one shared
+    // scratch buffer twice aliases the arguments — SDL reads the destination rect as the source,
+    // reads a nonsense region of the texture, and draws nothing at all. A blank picture, no error.
+    val s = frectSrc(1.0, 2.0, 3.0, 4.0)
+    val d = frect(10.0, 20.0, 30.0, 40.0)
+    // Filling the second must not disturb the first.
+    s(0) shouldBe 1.0f
+    s(1) shouldBe 2.0f
+    s(2) shouldBe 3.0f
+    s(3) shouldBe 4.0f
+    d(0) shouldBe 10.0f
+    d(3) shouldBe 40.0f
+    // And they really are two buffers, not one.
+    (s == d) shouldBe false
+  }
+
   "PIXELFORMAT_ARGB8888 matches SDL's pixel-format encoding" in {
     // SDL_DEFINE_PIXELFORMAT(PACKED32=6, ARGB=3, 8888=6, bits=32, bytes=4):
     //   (1<<28) | (6<<24) | (3<<20) | (6<<16) | (32<<8) | 4 = 0x16362004
