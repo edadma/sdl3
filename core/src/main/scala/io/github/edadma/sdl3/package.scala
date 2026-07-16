@@ -880,6 +880,14 @@ package object sdl3:
         stdlib.free(buf.asInstanceOf[Ptr[Byte]])
         ok
 
+    /** Queue `bytes` of already-native PCM straight from `buf`, in the stream's sample format.
+      * SDL copies synchronously, so a caller-owned buffer (e.g. one MLT filled for this frame) can
+      * be reused or freed the moment this returns. Avoids the staging copy the [[put(Array[Float])]]
+      * overload makes — hand a decoder's own buffer through with no intermediate array. */
+    def put(buf: Ptr[Byte], bytes: Int): Boolean =
+      if bytes <= 0 then true
+      else sdl.SDL_PutAudioStreamData(ptr, buf, bytes)
+
     /** Bytes still queued but not yet consumed by the device — 0 means the voice is idle, which
       * lets a player pick a free stream to avoid cutting off a sound that is still playing. */
     def queued: Int      = sdl.SDL_GetAudioStreamQueued(ptr)
