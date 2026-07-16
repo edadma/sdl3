@@ -105,8 +105,8 @@ package object sdl3:
   // resize); PIXEL_SIZE_CHANGED fires when the backbuffer's pixel size changes — the same
   // moment on a 1× display, and also when the window moves between displays of different
   // density. A renderer that owns a sized backbuffer rebuilds it on the latter.
-  val WINDOW_RESIZED            = 0x202
-  val WINDOW_PIXEL_SIZE_CHANGED = 0x208
+  val WINDOW_RESIZED            = 0x206
+  val WINDOW_PIXEL_SIZE_CHANGED = 0x207
   val KEY_DOWN          = 0x300
   val KEY_UP            = 0x301
   val TEXT_EDITING      = 0x304
