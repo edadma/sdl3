@@ -34,6 +34,7 @@ package object sdl3:
   val WINDOW_HIDDEN       = 0x00000008L
   val WINDOW_BORDERLESS   = 0x00000010L
   val WINDOW_RESIZABLE    = 0x00000020L
+  val WINDOW_MAXIMIZED    = 0x00000080L
   val WINDOW_HIGH_PIXEL_DENSITY = 0x00002000L
 
   // ---- texture access / scale mode / blend mode ----
