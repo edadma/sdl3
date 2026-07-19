@@ -174,6 +174,8 @@ object LibSDL3:
   // const bool* — one byte per scancode in SDL3 (was Uint8* in SDL2).
   def SDL_GetKeyboardState(numkeys: Ptr[CInt]): Ptr[CBool]                         = extern
   def SDL_GetMouseState(x: Ptr[Float], y: Ptr[Float]): UInt                        = extern
+  // SDL_Keymod is Uint16; the KMOD_* bitmask of the modifiers held right now.
+  def SDL_GetModState(): UShort                                                    = extern
   def SDL_AddEventWatch(filter: SDL_EventFilter, userdata: Ptr[Byte]): CBool       = extern
   def SDL_RemoveEventWatch(filter: SDL_EventFilter, userdata: Ptr[Byte]): Unit     = extern
 

@@ -913,6 +913,11 @@ package object sdl3:
   def pollEvent(): Option[Event] =
     if sdl.SDL_PollEvent(eventBuf) then Some(new Event(eventBuf)) else None
 
+  /** The modifier keys held right now, a bitmask of the `KMOD_*` values — for events that do not
+    * carry a modifier field of their own (mouse wheel and button events), the way `keyMod` serves
+    * keyboard events. */
+  def getModState(): Int = sdl.SDL_GetModState().toInt
+
   /** A view over the current SDL_Event buffer. Field accessors are only
     * meaningful for the matching `kind` (the underlying struct is a union).
     * Offsets are the stable SDL3 64-bit ABI layout — every event begins with
