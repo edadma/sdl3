@@ -34,8 +34,8 @@ val window = createWindow("title", 640, 480, WINDOW_RESIZABLE)
 ```
 
 Window flags: `WINDOW_FULLSCREEN`, `WINDOW_OPENGL`, `WINDOW_HIDDEN`, `WINDOW_BORDERLESS`,
-`WINDOW_RESIZABLE`, `WINDOW_HIGH_PIXEL_DENSITY`. A `Window` is an `AnyVal` over the SDL
-handle:
+`WINDOW_RESIZABLE`, `WINDOW_MAXIMIZED`, `WINDOW_HIGH_PIXEL_DENSITY`. A `Window` is an `AnyVal`
+over the SDL handle:
 
 ```scala
 window.isNull                       // creation failed?
@@ -251,6 +251,10 @@ and also when a window moves between displays of differing density; re-query `wi
 active modifier bitmask — test with `KMOD_SHIFT` / `KMOD_CTRL` / `KMOD_ALT` / `KMOD_GUI`),
 `mouseX`, `mouseY`, `mouseButton` (1 = left, 2 = middle, 3 = right), `wheelX`, `wheelY`
 (positive y = away from the user), `text` (for `TEXT_INPUT`).
+
+Mouse wheel and button events carry no modifier field of their own. To know which modifiers
+are held at the moment of one, call `getModState()` — it returns the live `KMOD_*` bitmask,
+the same values `keyMod` reports for keyboard events (e.g. `Ctrl`-scroll to zoom).
 
 ### Text input
 

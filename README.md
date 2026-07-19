@@ -53,10 +53,10 @@ brew install sdl3 sdl3_ttf sdl3_image sdl3_mixer
 Add the module(s) you need (Scala Native):
 
 ```scala
-libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.11"
-libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.11"
-libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.11"
-libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.11"
+libraryDependencies += "io.github.edadma" %%% "sdl3"       % "0.2.14"
+libraryDependencies += "io.github.edadma" %%% "sdl3_ttf"   % "0.2.14"
+libraryDependencies += "io.github.edadma" %%% "sdl3_image" % "0.2.14"
+libraryDependencies += "io.github.edadma" %%% "sdl3_mixer" % "0.2.14"
 ```
 
 ```scala
